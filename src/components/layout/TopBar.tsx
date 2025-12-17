@@ -1,6 +1,7 @@
-import { Search, Bell, User } from "lucide-react";
+import { Search, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AlertsDropdown } from "@/components/alerts/AlertsDropdown";
 
 export function TopBar() {
   return (
@@ -17,9 +18,7 @@ export function TopBar() {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground">
-          <Bell className="h-4 w-4" />
-        </Button>
+        <AlertsDropdown />
         <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground">
           <User className="h-4 w-4" />
         </Button>
