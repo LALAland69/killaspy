@@ -28,13 +28,13 @@ const initialFilters: AdsFilters = {
   search: "",
   searchBy: "all",
   category: "all",
-  country: "all",
-  language: "all",
+  country: "BR", // Default to Brazil
+  language: "pt", // Default to Portuguese
   platform: "all",
   status: "all",
   mediaType: "all",
   sortBy: "recent",
-  dateRange: "all",
+  dateRange: "today", // Default to today
   riskLevel: "all",
 };
 

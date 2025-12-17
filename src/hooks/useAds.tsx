@@ -99,6 +99,11 @@ export function useInfiniteAds(filters?: AdsFilters) {
         query = query.eq("status", filters.status);
       }
 
+      // Filter by country - check if country is in the countries array
+      if (filters?.country && filters.country !== "all") {
+        query = query.contains("countries", [filters.country]);
+      }
+
       if (filters?.search) {
         query = query.or(`headline.ilike.%${filters.search}%,primary_text.ilike.%${filters.search}%,page_name.ilike.%${filters.search}%`);
       }

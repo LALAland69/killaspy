@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // Filter for 2025 ads only
-const AD_DELIVERY_DATE_MIN = "2025-01-01";
+const AD_DELIVERY_DATE_MIN_BASE = "2025-01-01";
 
 interface FacebookAd {
   id: string;
@@ -30,32 +30,47 @@ interface FacebookAd {
   estimated_audience_size?: { lower_bound: number; upper_bound: number };
   impressions?: { lower_bound: number; upper_bound: number };
   spend?: { lower_bound: number; upper_bound: number };
+  bylines?: string;
 }
 
-async function fetchAdsForKeyword(
+function formatDateForFacebook(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+function getIncrementalStartDate(hoursBack: number = 6): string {
+  const date = new Date();
+  date.setHours(date.getHours() - hoursBack);
+  return formatDateForFacebook(date);
+}
+
+async function fetchAdsPage(
   keyword: string,
   country: string,
+  adActiveStatus: "ALL" | "ACTIVE" | "INACTIVE",
+  dateMin: string,
   limit: number = 100,
-  activeOnly: boolean = false
-): Promise<FacebookAd[]> {
+  afterCursor?: string
+): Promise<{ ads: FacebookAd[]; nextCursor?: string }> {
   if (!FACEBOOK_ACCESS_TOKEN) {
     console.error("FACEBOOK_ACCESS_TOKEN not configured");
-    return [];
+    return { ads: [] };
   }
 
   const params = new URLSearchParams({
     access_token: FACEBOOK_ACCESS_TOKEN,
     search_terms: keyword,
     ad_reached_countries: `["${country}"]`,
-    ad_active_status: activeOnly ? "ACTIVE" : "ALL",
-    ad_delivery_date_min: AD_DELIVERY_DATE_MIN,
-    fields: "id,ad_creation_time,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_descriptions,ad_creative_link_titles,ad_snapshot_url,languages,publisher_platforms,estimated_audience_size,impressions,spend",
+    ad_active_status: adActiveStatus,
+    ad_delivery_date_min: dateMin,
+    fields: "id,ad_creation_time,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_descriptions,ad_creative_link_titles,ad_snapshot_url,languages,publisher_platforms,estimated_audience_size,impressions,spend,bylines",
     limit: limit.toString(),
   });
 
+  if (afterCursor) {
+    params.append("after", afterCursor);
+  }
+
   try {
-    console.log(`Fetching ${activeOnly ? 'ACTIVE' : 'ALL'} ads for "${keyword}" in ${country} (2025+, limit: ${limit})`);
-    
     const response = await fetch(
       `https://graph.facebook.com/v21.0/ads_archive?${params}`
     );
@@ -63,75 +78,51 @@ async function fetchAdsForKeyword(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Facebook API error for keyword "${keyword}":`, errorText);
-      return [];
+      return { ads: [] };
     }
 
     const result = await response.json();
-    const ads = result.data || [];
-    console.log(`Got ${ads.length} ads for "${keyword}" in ${country}`);
-    return ads;
+    return {
+      ads: result.data || [],
+      nextCursor: result.paging?.cursors?.after,
+    };
   } catch (error) {
     console.error(`Error fetching ads for keyword "${keyword}":`, error);
-    return [];
+    return { ads: [] };
   }
 }
 
-async function fetchAllPagesForKeyword(
+async function fetchAllAdsForKeyword(
   keyword: string,
   country: string,
-  maxAds: number = 500
+  dateMin: string,
+  maxAds: number = 1000
 ): Promise<FacebookAd[]> {
-  if (!FACEBOOK_ACCESS_TOKEN) {
-    console.error("FACEBOOK_ACCESS_TOKEN not configured");
-    return [];
-  }
-
   const allAds: FacebookAd[] = [];
-  let nextUrl: string | null = null;
-  const limit = 100; // Max per request
+  let afterCursor: string | undefined;
+  const limit = 100;
 
-  const params = new URLSearchParams({
-    access_token: FACEBOOK_ACCESS_TOKEN,
-    search_terms: keyword,
-    ad_reached_countries: `["${country}"]`,
-    ad_active_status: "ALL",
-    ad_delivery_date_min: AD_DELIVERY_DATE_MIN,
-    fields: "id,ad_creation_time,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_descriptions,ad_creative_link_titles,ad_snapshot_url,languages,publisher_platforms,estimated_audience_size,impressions,spend",
-    limit: limit.toString(),
-  });
+  console.log(`Fetching ALL ads (active+inactive) for "${keyword}" in ${country} since ${dateMin}`);
 
-  let url = `https://graph.facebook.com/v21.0/ads_archive?${params}`;
+  while (allAds.length < maxAds) {
+    const { ads, nextCursor } = await fetchAdsPage(
+      keyword, 
+      country, 
+      "ALL", // Get both active AND inactive
+      dateMin, 
+      limit, 
+      afterCursor
+    );
 
-  while (url && allAds.length < maxAds) {
-    try {
-      console.log(`Fetching page for "${keyword}" in ${country} (collected: ${allAds.length})`);
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Facebook API error for keyword "${keyword}":`, errorText);
-        break;
-      }
+    if (ads.length === 0) break;
+    
+    allAds.push(...ads);
+    console.log(`  Collected ${allAds.length} ads so far...`);
 
-      const result = await response.json();
-      const ads = result.data || [];
-      allAds.push(...ads);
-      
-      // Check for next page
-      nextUrl = result.paging?.next || null;
-      url = nextUrl!;
-      
-      if (!nextUrl || ads.length < limit) {
-        break;
-      }
-      
-      // Small delay between pages
-      await new Promise(resolve => setTimeout(resolve, 300));
-    } catch (error) {
-      console.error(`Error fetching ads for keyword "${keyword}":`, error);
-      break;
-    }
+    if (!nextCursor || ads.length < limit) break;
+    
+    afterCursor = nextCursor;
+    await new Promise(resolve => setTimeout(resolve, 300));
   }
 
   console.log(`Total collected for "${keyword}" in ${country}: ${allAds.length} ads`);
@@ -147,6 +138,8 @@ async function processAndStoreAds(
   let imported = 0;
   let updated = 0;
   let errors = 0;
+
+  console.log(`Processing ${ads.length} ads for storage...`);
 
   for (const ad of ads) {
     try {
@@ -187,6 +180,9 @@ async function processAndStoreAds(
         .eq("tenant_id", tenantId)
         .single();
 
+      // Determine status based on delivery stop time
+      const isInactive = ad.ad_delivery_stop_time && new Date(ad.ad_delivery_stop_time) < new Date();
+
       const adData = {
         ad_library_id: ad.id,
         tenant_id: tenantId,
@@ -199,8 +195,10 @@ async function processAndStoreAds(
         start_date: ad.ad_delivery_start_time || ad.ad_creation_time || null,
         end_date: ad.ad_delivery_stop_time || null,
         language: ad.languages?.[0] || null,
-        status: ad.ad_delivery_stop_time ? "inactive" : "active",
+        status: isInactive ? "inactive" : "active",
         media_url: ad.ad_snapshot_url || null,
+        // Detect media type from snapshot URL
+        media_type: ad.ad_snapshot_url?.includes("video") ? "video" : "image",
       };
 
       if (existingAd) {
@@ -210,7 +208,6 @@ async function processAndStoreAds(
           .eq("id", existingAd.id);
 
         if (error) {
-          console.error("Error updating ad:", error);
           errors++;
         } else {
           updated++;
@@ -219,18 +216,17 @@ async function processAndStoreAds(
         const { error } = await supabase.from("ads").insert(adData);
 
         if (error) {
-          console.error("Error inserting ad:", error);
           errors++;
         } else {
           imported++;
         }
       }
     } catch (error) {
-      console.error("Error processing ad:", error);
       errors++;
     }
   }
 
+  console.log(`Processed: ${imported} imported, ${updated} updated, ${errors} errors`);
   return { imported, updated, errors };
 }
 
@@ -242,22 +238,23 @@ serve(async (req) => {
   try {
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Check if this is a scheduled call (no auth) or user call
     const authHeader = req.headers.get("Authorization");
     let tenantId: string | null = null;
     let categoryId: string | null = null;
     let isScheduled = false;
-    let fullHarvest = false;
+    let isFullHarvest = false;
+    let incrementalHours = 6;
 
     const body = await req.json().catch(() => ({}));
     
     if (body.scheduled === true) {
-      // Scheduled job - process all active categories
       isScheduled = true;
-      fullHarvest = body.fullHarvest === true;
-      console.log(`Running ${fullHarvest ? 'FULL' : 'incremental'} scheduled harvest for all tenants (2025 ads only)`);
+      isFullHarvest = body.fullHarvest === true;
+      incrementalHours = body.incrementalHours || 6;
+      
+      const harvestType = isFullHarvest ? "FULL (all 2025)" : `INCREMENTAL (last ${incrementalHours}h)`;
+      console.log(`Running ${harvestType} scheduled harvest for all tenants`);
     } else if (authHeader) {
-      // User-initiated harvest
       const supabaseClient = createClient(
         SUPABASE_URL,
         Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -287,8 +284,15 @@ serve(async (req) => {
 
       tenantId = profile.tenant_id;
       categoryId = body.categoryId;
-      fullHarvest = body.fullHarvest === true;
+      isFullHarvest = body.fullHarvest === true;
     }
+
+    // Determine the date filter
+    const dateMin = isFullHarvest 
+      ? AD_DELIVERY_DATE_MIN_BASE  // Full: desde 01/01/2025
+      : getIncrementalStartDate(incrementalHours); // Incremental: últimas X horas
+
+    console.log(`Date filter: ads since ${dateMin}`);
 
     // Fetch categories to process
     let categoriesQuery = supabaseAdmin
@@ -318,26 +322,23 @@ serve(async (req) => {
     let totalErrors = 0;
 
     for (const category of categories) {
-      console.log(`Processing category: ${category.name} for tenant: ${category.tenant_id}`);
+      console.log(`\n=== Processing category: ${category.name} ===`);
       
       const allAds: FacebookAd[] = [];
       
-      // Fetch ads for each keyword in each country
+      // Prioritize Brazil - fetch BR first
+      const sortedCountries = [...category.countries].sort((a, b) => {
+        if (a === "BR") return -1;
+        if (b === "BR") return 1;
+        return 0;
+      });
+
       for (const keyword of category.keywords) {
-        for (const country of category.countries) {
-          let ads: FacebookAd[];
-          
-          if (fullHarvest) {
-            // Full harvest - paginate through all available ads (up to 500 per keyword/country)
-            ads = await fetchAllPagesForKeyword(keyword, country, 500);
-          } else {
-            // Incremental - just fetch latest 100 ads
-            ads = await fetchAdsForKeyword(keyword, country, 100, false);
-          }
-          
+        for (const country of sortedCountries) {
+          const maxAdsPerQuery = isFullHarvest ? 1000 : 200;
+          const ads = await fetchAllAdsForKeyword(keyword, country, dateMin, maxAdsPerQuery);
           allAds.push(...ads);
           
-          // Small delay to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
@@ -349,22 +350,23 @@ serve(async (req) => {
 
       console.log(`Found ${uniqueAds.length} unique ads for category ${category.name}`);
 
-      // Process and store ads
-      const results = await processAndStoreAds(
-        uniqueAds,
-        category.tenant_id,
-        category.id,
-        supabaseAdmin
-      );
+      if (uniqueAds.length > 0) {
+        const results = await processAndStoreAds(
+          uniqueAds,
+          category.tenant_id,
+          category.id,
+          supabaseAdmin
+        );
 
-      totalImported += results.imported;
-      totalUpdated += results.updated;
-      totalErrors += results.errors;
+        totalImported += results.imported;
+        totalUpdated += results.updated;
+        totalErrors += results.errors;
+      }
 
       // Update category with harvest timestamp and count
-      const { data: adCount } = await supabaseAdmin
+      const { count } = await supabaseAdmin
         .from("ads")
-        .select("id", { count: "exact" })
+        .select("id", { count: "exact", head: true })
         .eq("category_id", category.id)
         .eq("tenant_id", category.tenant_id);
 
@@ -372,7 +374,7 @@ serve(async (req) => {
         .from("ad_categories")
         .update({
           last_harvest_at: new Date().toISOString(),
-          ads_count: adCount?.length || 0,
+          ads_count: count || 0,
         })
         .eq("id", category.id);
     }
@@ -380,9 +382,9 @@ serve(async (req) => {
     // Log job run if scheduled
     if (isScheduled) {
       await supabaseAdmin.from("job_runs").insert({
-        job_name: fullHarvest ? "Full Harvest Ads 2025" : "Incremental Harvest Ads",
+        job_name: isFullHarvest ? "Full Harvest 2025" : `Incremental Harvest (${incrementalHours}h)`,
         task_type: "ad_harvest",
-        schedule_type: fullHarvest ? "manual" : "6h",
+        schedule_type: isFullHarvest ? "manual" : `${incrementalHours}h`,
         status: totalErrors > 0 ? "completed_with_errors" : "completed",
         ads_processed: totalImported + totalUpdated,
         errors_count: totalErrors,
@@ -390,11 +392,15 @@ serve(async (req) => {
         metadata: { 
           imported: totalImported, 
           updated: totalUpdated,
-          year_filter: "2025",
-          harvest_type: fullHarvest ? "full" : "incremental"
+          dateMin,
+          harvestType: isFullHarvest ? "full" : "incremental",
+          incrementalHours: isFullHarvest ? null : incrementalHours,
         },
       });
     }
+
+    console.log(`\n=== HARVEST COMPLETE ===`);
+    console.log(`Imported: ${totalImported}, Updated: ${totalUpdated}, Errors: ${totalErrors}`);
 
     return new Response(
       JSON.stringify({
@@ -402,8 +408,8 @@ serve(async (req) => {
         imported: totalImported,
         updated: totalUpdated,
         errors: totalErrors,
-        yearFilter: "2025",
-        harvestType: fullHarvest ? "full" : "incremental",
+        dateMin,
+        harvestType: isFullHarvest ? "full" : "incremental",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
