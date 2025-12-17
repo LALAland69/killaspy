@@ -470,6 +470,68 @@ export type Database = {
           },
         ]
       }
+      job_runs: {
+        Row: {
+          ads_processed: number | null
+          completed_at: string | null
+          created_at: string
+          divergences_found: number | null
+          duration_ms: number | null
+          error_message: string | null
+          errors_count: number | null
+          id: string
+          job_name: string
+          metadata: Json | null
+          schedule_type: string
+          started_at: string
+          status: string
+          task_type: string
+          tenant_id: string | null
+        }
+        Insert: {
+          ads_processed?: number | null
+          completed_at?: string | null
+          created_at?: string
+          divergences_found?: number | null
+          duration_ms?: number | null
+          error_message?: string | null
+          errors_count?: number | null
+          id?: string
+          job_name: string
+          metadata?: Json | null
+          schedule_type: string
+          started_at?: string
+          status?: string
+          task_type: string
+          tenant_id?: string | null
+        }
+        Update: {
+          ads_processed?: number | null
+          completed_at?: string | null
+          created_at?: string
+          divergences_found?: number | null
+          duration_ms?: number | null
+          error_message?: string | null
+          errors_count?: number | null
+          id?: string
+          job_name?: string
+          metadata?: Json | null
+          schedule_type?: string
+          started_at?: string
+          status?: string
+          task_type?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_runs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       landing_page_snapshots: {
         Row: {
           ad_id: string

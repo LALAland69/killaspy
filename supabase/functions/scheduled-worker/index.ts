@@ -19,12 +19,6 @@ const REFERERS = {
   google: "https://www.google.com/",
 };
 
-const GEO_TARGETS = {
-  tier1: { country: "US", language: "en-US" },
-  tier3: { country: "RU", language: "ru-RU" },
-  target: { country: "BR", language: "pt-BR" },
-};
-
 const STANDARD_UTM_PARAMS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "gclid"];
 
 function deduceCloakerToken(url: string): string | null {
@@ -56,10 +50,9 @@ async function testUrlForDivergence(
   supabase: any,
   ad: any,
   targetUrl: string
-): Promise<{ divergenceFound: boolean; blackUrl: string | null }> {
+): Promise<{ divergenceFound: boolean; blackUrl: string | null; error?: string }> {
   const token = deduceCloakerToken(targetUrl);
   
-  // Safe request (white page)
   let whiteHash = "";
   try {
     const whiteResponse = await fetch(targetUrl, {
@@ -68,7 +61,6 @@ async function testUrlForDivergence(
     const whiteContent = await whiteResponse.text();
     whiteHash = hashContent(whiteContent);
     
-    // Store white snapshot
     await supabase.from("landing_page_snapshots").insert({
       tenant_id: ad.tenant_id,
       ad_id: ad.id,
@@ -82,11 +74,9 @@ async function testUrlForDivergence(
       is_black_page: false,
     });
   } catch (e) {
-    console.error(`Failed to fetch white page for ${ad.id}:`, e);
-    return { divergenceFound: false, blackUrl: null };
+    return { divergenceFound: false, blackUrl: null, error: `White page fetch failed: ${e}` };
   }
   
-  // Test with Facebook referer + token (black page attempt)
   const testUrl = token ? `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}${token}` : targetUrl;
   
   try {
@@ -100,7 +90,6 @@ async function testUrlForDivergence(
     
     const blackContent = await blackResponse.text();
     const blackHash = hashContent(blackContent);
-    
     const divergenceFound = blackHash !== whiteHash || blackResponse.url !== targetUrl;
     
     if (divergenceFound) {
@@ -122,33 +111,68 @@ async function testUrlForDivergence(
       return { divergenceFound: true, blackUrl: blackResponse.url };
     }
   } catch (e) {
-    console.error(`Failed to test black page for ${ad.id}:`, e);
+    return { divergenceFound: false, blackUrl: null, error: `Black page test failed: ${e}` };
   }
   
   return { divergenceFound: false, blackUrl: null };
 }
+
+// Job name mapping
+const JOB_NAMES: Record<string, Record<string, string>> = {
+  divergence_test: {
+    daily: "Daily Divergence Test",
+    intraday: "Intraday High-Risk Test",
+  },
+  status_check: {
+    daily: "Daily Status Check",
+  },
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
   
+  const startTime = Date.now();
+  let jobRunId: string | null = null;
+  
   try {
     const { taskType, scheduleType } = await req.json().catch(() => ({}));
     const type = taskType || "divergence_test";
     const schedule = scheduleType || "daily";
+    const jobName = JOB_NAMES[type]?.[schedule] || `${type} (${schedule})`;
     
-    console.log(`Starting scheduled worker: ${type} (${schedule})`);
+    console.log(`Starting scheduled worker: ${jobName}`);
     
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
     
+    // Create job run record
+    const { data: jobRun, error: jobRunError } = await supabase
+      .from("job_runs")
+      .insert({
+        job_name: jobName,
+        task_type: type,
+        schedule_type: schedule,
+        status: "running",
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    
+    if (jobRunError) {
+      console.error("Failed to create job run:", jobRunError);
+    } else {
+      jobRunId = jobRun.id;
+    }
+    
     let processedCount = 0;
     let divergencesFound = 0;
+    let errorsCount = 0;
+    const errors: string[] = [];
     
     if (type === "divergence_test") {
-      // Get ads to test based on schedule type
       let query = supabase
         .from("ads")
         .select("id, tenant_id, final_lp_url, white_url, suspicion_score, is_cloaked_flag")
@@ -156,19 +180,12 @@ serve(async (req) => {
         .order("suspicion_score", { ascending: false });
       
       if (schedule === "intraday") {
-        // Intraday: Focus on high-risk ads with recent creative rotation
-        query = query
-          .gte("suspicion_score", 50)
-          .limit(20);
+        query = query.gte("suspicion_score", 50).limit(20);
       } else {
-        // Daily: Test broader set of active ads
-        query = query
-          .eq("status", "active")
-          .limit(50);
+        query = query.eq("status", "active").limit(50);
       }
       
       const { data: ads, error } = await query;
-      
       if (error) throw error;
       
       console.log(`Found ${ads?.length || 0} ads to test`);
@@ -180,10 +197,13 @@ serve(async (req) => {
         const result = await testUrlForDivergence(supabase, ad, targetUrl);
         processedCount++;
         
+        if (result.error) {
+          errorsCount++;
+          errors.push(result.error);
+        }
+        
         if (result.divergenceFound) {
           divergencesFound++;
-          
-          // Update ad with cloaking detection
           await supabase
             .from("ads")
             .update({
@@ -194,22 +214,17 @@ serve(async (req) => {
             .eq("id", ad.id);
         }
         
-        // Rate limiting
         await new Promise((r) => setTimeout(r, 1000));
       }
       
-      // Log daily report
       if (schedule === "daily") {
         const tenantIds = [...new Set((ads || []).map((a) => a.tenant_id))];
-        
         for (const tenantId of tenantIds) {
           const tenantAds = (ads || []).filter((a) => a.tenant_id === tenantId);
-          const tenantDivergences = tenantAds.filter((a) => a.is_cloaked_flag).length;
-          
           await supabase.from("daily_reports").insert({
             tenant_id: tenantId,
             total_ads_analyzed: tenantAds.length,
-            new_cloakers_detected: tenantDivergences,
+            new_cloakers_detected: tenantAds.filter((a) => a.is_cloaked_flag).length,
             top_aggressive_ads: tenantAds
               .sort((a, b) => (b.suspicion_score || 0) - (a.suspicion_score || 0))
               .slice(0, 5)
@@ -218,7 +233,6 @@ serve(async (req) => {
         }
       }
     } else if (type === "status_check") {
-      // Check ad status (active/inactive)
       const { data: ads, error } = await supabase
         .from("ads")
         .select("id, tenant_id, final_lp_url, status")
@@ -237,27 +251,46 @@ serve(async (req) => {
           });
           
           if (response.status === 404 || response.status >= 500) {
-            await supabase
-              .from("ads")
-              .update({ status: "inactive" })
-              .eq("id", ad.id);
+            await supabase.from("ads").update({ status: "inactive" }).eq("id", ad.id);
           }
-          
           processedCount++;
-        } catch {
-          // Mark as potentially inactive
+        } catch (e) {
+          errorsCount++;
+          errors.push(`Status check failed for ${ad.id}: ${e}`);
         }
         
         await new Promise((r) => setTimeout(r, 500));
       }
     }
     
+    const durationMs = Date.now() - startTime;
+    
+    // Update job run with completion
+    if (jobRunId) {
+      await supabase
+        .from("job_runs")
+        .update({
+          status: errorsCount > 0 && processedCount === 0 ? "failed" : "completed",
+          completed_at: new Date().toISOString(),
+          duration_ms: durationMs,
+          ads_processed: processedCount,
+          divergences_found: divergencesFound,
+          errors_count: errorsCount,
+          error_message: errors.length > 0 ? errors.slice(0, 5).join("; ") : null,
+          metadata: { totalErrors: errorsCount },
+        })
+        .eq("id", jobRunId);
+    }
+    
     const result = {
       success: true,
+      jobRunId,
       taskType: type,
       scheduleType: schedule,
       processedCount,
       divergencesFound,
+      errorsCount,
+      durationMs,
       completedAt: new Date().toISOString(),
     };
     
@@ -267,9 +300,29 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    const durationMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    // Update job run with failure
+    if (jobRunId) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
+      await supabase
+        .from("job_runs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          duration_ms: durationMs,
+          error_message: errorMessage,
+        })
+        .eq("id", jobRunId);
+    }
+    
     console.error("Scheduled worker error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

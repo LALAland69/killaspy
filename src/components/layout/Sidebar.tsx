@@ -9,7 +9,8 @@ import {
   Settings,
   Eye,
   Database,
-  LogOut
+  LogOut,
+  History
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +23,7 @@ const navigation = [
   { name: "Domains", href: "/domains", icon: Globe },
   { name: "Trends", href: "/trends", icon: TrendingUp },
   { name: "Divergence", href: "/divergence", icon: Eye },
+  { name: "Job History", href: "/jobs", icon: History },
 ];
 
 const secondaryNavigation = [
