@@ -17,6 +17,7 @@ import TrendsPage from "./pages/TrendsPage";
 import JobHistoryPage from "./pages/JobHistoryPage";
 import AdImportPage from "./pages/AdImportPage";
 import IntelligencePage from "./pages/IntelligencePage";
+import AlertsPage from "./pages/AlertsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -83,6 +84,11 @@ const App = () => (
             <Route path="/intelligence" element={
               <ProtectedRoute>
                 <IntelligencePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/alerts" element={
+              <ProtectedRoute>
+                <AlertsPage />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

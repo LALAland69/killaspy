@@ -242,6 +242,70 @@ export type Database = {
           },
         ]
       }
+      alerts: {
+        Row: {
+          alert_type: string
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string | null
+          metadata: Json | null
+          related_ad_id: string | null
+          related_advertiser_id: string | null
+          severity: string
+          tenant_id: string
+          title: string
+        }
+        Insert: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          metadata?: Json | null
+          related_ad_id?: string | null
+          related_advertiser_id?: string | null
+          severity?: string
+          tenant_id: string
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          metadata?: Json | null
+          related_ad_id?: string | null
+          related_advertiser_id?: string | null
+          severity?: string
+          tenant_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_related_ad_id_fkey"
+            columns: ["related_ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_related_advertiser_id_fkey"
+            columns: ["related_advertiser_id"]
+            isOneToOne: false
+            referencedRelation: "advertisers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analysis_scores: {
         Row: {
           ad_domain_disparity_score: number | null
@@ -775,6 +839,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      trend_validations: {
+        Row: {
+          created_at: string
+          id: string
+          interest_over_time: Json | null
+          keyword: string
+          region: string | null
+          related_queries: Json | null
+          tenant_id: string
+          trend_direction: string | null
+          trend_score: number | null
+          validated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          interest_over_time?: Json | null
+          keyword: string
+          region?: string | null
+          related_queries?: Json | null
+          tenant_id: string
+          trend_direction?: string | null
+          trend_score?: number | null
+          validated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          interest_over_time?: Json | null
+          keyword?: string
+          region?: string | null
+          related_queries?: Json | null
+          tenant_id?: string
+          trend_direction?: string | null
+          trend_score?: number | null
+          validated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trend_validations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
