@@ -470,6 +470,59 @@ export type Database = {
           },
         ]
       }
+      import_schedules: {
+        Row: {
+          ad_active_status: string | null
+          ad_reached_countries: string[] | null
+          created_at: string
+          id: string
+          import_limit: number | null
+          is_active: boolean | null
+          last_run_at: string | null
+          name: string
+          search_page_ids: string[] | null
+          search_terms: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_active_status?: string | null
+          ad_reached_countries?: string[] | null
+          created_at?: string
+          id?: string
+          import_limit?: number | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name: string
+          search_page_ids?: string[] | null
+          search_terms?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ad_active_status?: string | null
+          ad_reached_countries?: string[] | null
+          created_at?: string
+          id?: string
+          import_limit?: number | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name?: string
+          search_page_ids?: string[] | null
+          search_terms?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_schedules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_runs: {
         Row: {
           ads_processed: number | null
