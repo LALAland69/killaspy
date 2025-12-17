@@ -38,18 +38,18 @@ interface AdsFiltersBarProps {
 }
 
 const COUNTRIES = [
+  { code: "BR", name: "🇧🇷 Brasil" },
   { code: "all", name: "Todos os Países" },
-  { code: "BR", name: "Brasil" },
-  { code: "US", name: "Estados Unidos" },
-  { code: "UK", name: "Reino Unido" },
-  { code: "CA", name: "Canadá" },
-  { code: "AU", name: "Austrália" },
-  { code: "DE", name: "Alemanha" },
-  { code: "FR", name: "França" },
-  { code: "ES", name: "Espanha" },
-  { code: "IT", name: "Itália" },
-  { code: "MX", name: "México" },
-  { code: "PT", name: "Portugal" },
+  { code: "US", name: "🇺🇸 Estados Unidos" },
+  { code: "UK", name: "🇬🇧 Reino Unido" },
+  { code: "CA", name: "🇨🇦 Canadá" },
+  { code: "AU", name: "🇦🇺 Austrália" },
+  { code: "DE", name: "🇩🇪 Alemanha" },
+  { code: "FR", name: "🇫🇷 França" },
+  { code: "ES", name: "🇪🇸 Espanha" },
+  { code: "IT", name: "🇮🇹 Itália" },
+  { code: "MX", name: "🇲🇽 México" },
+  { code: "PT", name: "🇵🇹 Portugal" },
 ];
 
 const LANGUAGES = [
