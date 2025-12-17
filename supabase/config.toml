@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.cloaking-divergence-engine]
 verify_jwt = true
+
+[functions.scheduled-worker]
+verify_jwt = false
