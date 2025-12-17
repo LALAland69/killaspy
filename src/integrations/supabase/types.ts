@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_categories: {
+        Row: {
+          ads_count: number
+          countries: string[]
+          created_at: string
+          id: string
+          is_active: boolean
+          keywords: string[]
+          last_harvest_at: string | null
+          name: string
+          slug: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ads_count?: number
+          countries?: string[]
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          keywords?: string[]
+          last_harvest_at?: string | null
+          name: string
+          slug: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ads_count?: number
+          countries?: string[]
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          keywords?: string[]
+          last_harvest_at?: string | null
+          name?: string
+          slug?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_history: {
         Row: {
           ad_id: string
@@ -72,6 +122,7 @@ export type Database = {
         Row: {
           ad_library_id: string | null
           advertiser_id: string | null
+          category_id: string | null
           cloaker_token: string | null
           copy_sentiment: string | null
           countries: string[] | null
@@ -105,6 +156,7 @@ export type Database = {
         Insert: {
           ad_library_id?: string | null
           advertiser_id?: string | null
+          category_id?: string | null
           cloaker_token?: string | null
           copy_sentiment?: string | null
           countries?: string[] | null
@@ -138,6 +190,7 @@ export type Database = {
         Update: {
           ad_library_id?: string | null
           advertiser_id?: string | null
+          category_id?: string | null
           cloaker_token?: string | null
           copy_sentiment?: string | null
           countries?: string[] | null
@@ -174,6 +227,13 @@ export type Database = {
             columns: ["advertiser_id"]
             isOneToOne: false
             referencedRelation: "advertisers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "ad_categories"
             referencedColumns: ["id"]
           },
           {

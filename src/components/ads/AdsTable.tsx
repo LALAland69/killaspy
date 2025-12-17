@@ -2,7 +2,7 @@ import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Play, Image as ImageIcon, Loader2, Download } from "lucide-react";
-import { useAds, type Ad } from "@/hooks/useAds";
+import { useAds, type Ad, type AdsFilters } from "@/hooks/useAds";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
 
@@ -10,10 +10,11 @@ interface AdsTableProps {
   limit?: number;
   ads?: Ad[];
   isLoading?: boolean;
+  filters?: AdsFilters;
 }
 
-export function AdsTable({ limit, ads: providedAds, isLoading: providedLoading }: AdsTableProps) {
-  const { data: fetchedAds, isLoading: fetchLoading } = useAds(limit);
+export function AdsTable({ limit, ads: providedAds, isLoading: providedLoading, filters }: AdsTableProps) {
+  const { data: fetchedAds, isLoading: fetchLoading } = useAds(limit, filters);
   
   const ads = providedAds || fetchedAds;
   const isLoading = providedLoading !== undefined ? providedLoading : fetchLoading;
