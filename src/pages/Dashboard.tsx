@@ -5,6 +5,7 @@ import { AdsTable } from "@/components/ads/AdsTable";
 import { RiskDistributionChart } from "@/components/dashboard/RiskDistributionChart";
 import { AdVelocityChart } from "@/components/dashboard/AdVelocityChart";
 import { NicheGrowthChart } from "@/components/dashboard/NicheGrowthChart";
+import { ScheduledWorkersPanel } from "@/components/dashboard/ScheduledWorkersPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Search, Users, Globe, AlertTriangle, Database, Loader2 } from "lucide-react";
@@ -105,9 +106,10 @@ export default function Dashboard() {
       </div>
 
       {/* Two Column Layout */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <RecentActivity />
         <TopAdvertisers />
+        <ScheduledWorkersPanel />
       </div>
 
       {/* Ads Table */}
