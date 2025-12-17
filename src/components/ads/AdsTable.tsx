@@ -1,8 +1,10 @@
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Play, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ExternalLink, Play, Image as ImageIcon, Loader2, Download } from "lucide-react";
 import { useAds, type Ad } from "@/hooks/useAds";
 import { format } from "date-fns";
+import { Link } from "react-router-dom";
 
 interface AdsTableProps {
   limit?: number;
@@ -26,8 +28,14 @@ export function AdsTable({ limit, ads: providedAds, isLoading: providedLoading }
 
   if (!ads || ads.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-border/50 bg-card">
-        <p className="text-sm text-muted-foreground">No ads found. Seed demo data to get started.</p>
+      <div className="flex h-48 flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-card">
+        <p className="text-sm text-muted-foreground">Nenhum anúncio encontrado.</p>
+        <Button asChild>
+          <Link to="/import">
+            <Download className="h-4 w-4 mr-2" />
+            Importar da Ad Library
+          </Link>
+        </Button>
       </div>
     );
   }
