@@ -2,7 +2,8 @@ import { useTriggerScheduledWorker } from "@/hooks/useScheduledWorker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, PlayCircle, RefreshCw, Search, CheckCircle } from "lucide-react";
+import { Clock, PlayCircle, RefreshCw, History } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const SCHEDULES = [
   {
@@ -37,10 +38,18 @@ export function ScheduledWorkersPanel() {
   return (
     <Card className="border-border/50 bg-card">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
-          <Clock className="h-4 w-4 text-primary" />
-          Scheduled Workers
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Clock className="h-4 w-4 text-primary" />
+            Scheduled Workers
+          </CardTitle>
+          <Link to="/jobs">
+            <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
+              <History className="h-3 w-3" />
+              History
+            </Button>
+          </Link>
+        </div>
         <CardDescription className="text-xs">
           Automated tasks for ad monitoring and divergence detection
         </CardDescription>
