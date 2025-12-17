@@ -18,6 +18,8 @@ import JobHistoryPage from "./pages/JobHistoryPage";
 import AdImportPage from "./pages/AdImportPage";
 import IntelligencePage from "./pages/IntelligencePage";
 import AlertsPage from "./pages/AlertsPage";
+import SecurityAuditsPage from "./pages/SecurityAuditsPage";
+import AuditDetailPage from "./pages/AuditDetailPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -89,6 +91,16 @@ const App = () => (
             <Route path="/alerts" element={
               <ProtectedRoute>
                 <AlertsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/security-audits" element={
+              <ProtectedRoute>
+                <SecurityAuditsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/security-audits/:id" element={
+              <ProtectedRoute>
+                <AuditDetailPage />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

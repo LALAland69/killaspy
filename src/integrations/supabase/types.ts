@@ -379,6 +379,220 @@ export type Database = {
           },
         ]
       }
+      audit_findings: {
+        Row: {
+          affected_domain: string | null
+          affected_url: string | null
+          audit_id: string
+          created_at: string
+          description: string | null
+          evidence: Json | null
+          finding_type: string
+          id: string
+          is_false_positive: boolean | null
+          is_resolved: boolean | null
+          module_execution_id: string | null
+          remediation: string | null
+          severity: Database["public"]["Enums"]["finding_severity"]
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          affected_domain?: string | null
+          affected_url?: string | null
+          audit_id: string
+          created_at?: string
+          description?: string | null
+          evidence?: Json | null
+          finding_type: string
+          id?: string
+          is_false_positive?: boolean | null
+          is_resolved?: boolean | null
+          module_execution_id?: string | null
+          remediation?: string | null
+          severity?: Database["public"]["Enums"]["finding_severity"]
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          affected_domain?: string | null
+          affected_url?: string | null
+          audit_id?: string
+          created_at?: string
+          description?: string | null
+          evidence?: Json | null
+          finding_type?: string
+          id?: string
+          is_false_positive?: boolean | null
+          is_resolved?: boolean | null
+          module_execution_id?: string | null
+          remediation?: string | null
+          severity?: Database["public"]["Enums"]["finding_severity"]
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_findings_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "security_audits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_findings_module_execution_id_fkey"
+            columns: ["module_execution_id"]
+            isOneToOne: false
+            referencedRelation: "audit_module_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_findings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_module_executions: {
+        Row: {
+          audit_id: string
+          completed_at: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          input_data: Json | null
+          module_type: Database["public"]["Enums"]["audit_module_type"]
+          output_data: Json | null
+          resource_cost: number | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["audit_status"]
+          tenant_id: string
+        }
+        Insert: {
+          audit_id: string
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_data?: Json | null
+          module_type: Database["public"]["Enums"]["audit_module_type"]
+          output_data?: Json | null
+          resource_cost?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          tenant_id: string
+        }
+        Update: {
+          audit_id?: string
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_data?: Json | null
+          module_type?: Database["public"]["Enums"]["audit_module_type"]
+          output_data?: Json | null
+          resource_cost?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_module_executions_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "security_audits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_module_executions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_snapshots: {
+        Row: {
+          audit_id: string | null
+          captured_at: string
+          content_hash: string | null
+          created_at: string
+          geo_location: string | null
+          headers_sent: Json | null
+          html_content: string | null
+          id: string
+          redirect_chain: Json | null
+          response_code: number | null
+          response_headers: Json | null
+          screenshot_url: string | null
+          tenant_id: string
+          text_content: string | null
+          url: string
+          user_agent: string | null
+        }
+        Insert: {
+          audit_id?: string | null
+          captured_at?: string
+          content_hash?: string | null
+          created_at?: string
+          geo_location?: string | null
+          headers_sent?: Json | null
+          html_content?: string | null
+          id?: string
+          redirect_chain?: Json | null
+          response_code?: number | null
+          response_headers?: Json | null
+          screenshot_url?: string | null
+          tenant_id: string
+          text_content?: string | null
+          url: string
+          user_agent?: string | null
+        }
+        Update: {
+          audit_id?: string | null
+          captured_at?: string
+          content_hash?: string | null
+          created_at?: string
+          geo_location?: string | null
+          headers_sent?: Json | null
+          html_content?: string | null
+          id?: string
+          redirect_chain?: Json | null
+          response_code?: number | null
+          response_headers?: Json | null
+          screenshot_url?: string | null
+          tenant_id?: string
+          text_content?: string | null
+          url?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_snapshots_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "security_audits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_snapshots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_reports: {
         Row: {
           created_at: string
@@ -819,6 +1033,78 @@ export type Database = {
           },
         ]
       }
+      security_audits: {
+        Row: {
+          completed_at: string | null
+          config: Json | null
+          created_at: string
+          critical_findings: number | null
+          description: string | null
+          id: string
+          name: string
+          resource_points: number | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["audit_status"]
+          target_advertiser_id: string | null
+          target_domain: string | null
+          target_url: string | null
+          tenant_id: string
+          total_findings: number | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          config?: Json | null
+          created_at?: string
+          critical_findings?: number | null
+          description?: string | null
+          id?: string
+          name: string
+          resource_points?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          target_advertiser_id?: string | null
+          target_domain?: string | null
+          target_url?: string | null
+          tenant_id: string
+          total_findings?: number | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          config?: Json | null
+          created_at?: string
+          critical_findings?: number | null
+          description?: string | null
+          id?: string
+          name?: string
+          resource_points?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          target_advertiser_id?: string | null
+          target_domain?: string | null
+          target_url?: string | null
+          tenant_id?: string
+          total_findings?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_audits_target_advertiser_id_fkey"
+            columns: ["target_advertiser_id"]
+            isOneToOne: false
+            referencedRelation: "advertisers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_audits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string
@@ -924,6 +1210,25 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      audit_module_type:
+        | "social_media_ad_monitor"
+        | "search_ad_monitor"
+        | "tech_stack_identifier"
+        | "public_record_correlator"
+        | "content_render_auditor"
+        | "ssl_certificate_auditor"
+        | "header_consistency_checker"
+        | "geolocation_load_tester"
+        | "javascript_execution_auditor"
+        | "redirect_path_mapper"
+        | "parameter_analysis_tool"
+        | "visual_diff_engine"
+        | "textual_content_fingerprinter"
+        | "domain_reputation_checker"
+        | "campaign_pattern_mapper"
+        | "entity_relationship_graph"
+      audit_status: "pending" | "running" | "completed" | "failed" | "cancelled"
+      finding_severity: "info" | "low" | "medium" | "high" | "critical"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1052,6 +1357,26 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      audit_module_type: [
+        "social_media_ad_monitor",
+        "search_ad_monitor",
+        "tech_stack_identifier",
+        "public_record_correlator",
+        "content_render_auditor",
+        "ssl_certificate_auditor",
+        "header_consistency_checker",
+        "geolocation_load_tester",
+        "javascript_execution_auditor",
+        "redirect_path_mapper",
+        "parameter_analysis_tool",
+        "visual_diff_engine",
+        "textual_content_fingerprinter",
+        "domain_reputation_checker",
+        "campaign_pattern_mapper",
+        "entity_relationship_graph",
+      ],
+      audit_status: ["pending", "running", "completed", "failed", "cancelled"],
+      finding_severity: ["info", "low", "medium", "high", "critical"],
     },
   },
 } as const
