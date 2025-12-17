@@ -2,3 +2,6 @@ project_id = "unucjuxitmawvmvvzxqq"
 
 [functions.seed-demo-data]
 verify_jwt = true
+
+[functions.cloaking-divergence-engine]
+verify_jwt = true
