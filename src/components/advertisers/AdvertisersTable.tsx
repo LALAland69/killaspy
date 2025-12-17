@@ -1,6 +1,7 @@
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
+import { Button } from "@/components/ui/button";
 import { useAdvertisers } from "@/hooks/useAdvertisers";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2, ExternalLink, Download } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function AdvertisersTable() {
@@ -16,8 +17,14 @@ export function AdvertisersTable() {
 
   if (!advertisers || advertisers.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-border/50 bg-card">
-        <p className="text-sm text-muted-foreground">No advertisers found. Seed demo data to get started.</p>
+      <div className="flex h-48 flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-card">
+        <p className="text-sm text-muted-foreground">Nenhum anunciante encontrado.</p>
+        <Button asChild>
+          <Link to="/import">
+            <Download className="h-4 w-4 mr-2" />
+            Importar da Ad Library
+          </Link>
+        </Button>
       </div>
     );
   }
