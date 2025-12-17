@@ -1093,6 +1093,51 @@ export type Database = {
           },
         ]
       }
+      saved_ads: {
+        Row: {
+          ad_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          tags: string[] | null
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          ad_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          tags?: string[] | null
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          ad_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          tags?: string[] | null
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_ads_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_ads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       security_audits: {
         Row: {
           completed_at: string | null

@@ -1,6 +1,6 @@
+import { useEffect, useRef, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
 import { 
   ExternalLink, 
@@ -13,25 +13,66 @@ import {
   FileText,
   ChevronRight
 } from "lucide-react";
-import { useAds, type Ad } from "@/hooks/useAds";
+import { useInfiniteAds, type Ad } from "@/hooks/useAds";
+import { useToggleSaveAd } from "@/hooks/useSavedAds";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { AdsFilters } from "@/pages/Ads";
+import { cn } from "@/lib/utils";
 
 interface AdsGridProps {
   filters?: AdsFilters;
   limit?: number;
 }
 
-export function AdsGrid({ filters, limit }: AdsGridProps) {
-  const { data: ads, isLoading } = useAds(limit, filters ? {
+export function AdsGrid({ filters }: AdsGridProps) {
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteAds(filters ? {
     search: filters.search,
     category: filters.category,
     country: filters.country,
     status: filters.status,
     riskLevel: filters.riskLevel,
+    sortBy: filters.sortBy,
   } : undefined);
+
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll observer
+  const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
+    const [entry] = entries;
+    if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  useEffect(() => {
+    observerRef.current = new IntersectionObserver(handleObserver, {
+      root: null,
+      rootMargin: "100px",
+      threshold: 0.1,
+    });
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [handleObserver]);
+
+  const allAds = data?.pages.flatMap(page => page.ads) || [];
+  const totalCount = data?.pages[0]?.totalCount || 0;
 
   if (isLoading) {
     return (
@@ -41,7 +82,7 @@ export function AdsGrid({ filters, limit }: AdsGridProps) {
     );
   }
 
-  if (!ads || ads.length === 0) {
+  if (allAds.length === 0) {
     return (
       <div className="flex h-48 flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-card">
         <p className="text-sm text-muted-foreground">Nenhum anúncio encontrado.</p>
@@ -56,17 +97,35 @@ export function AdsGrid({ filters, limit }: AdsGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {ads.map((ad) => (
-        <AdCard key={ad.id} ad={ad} />
-      ))}
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Mostrando {allAds.length} de {totalCount} ads
+      </p>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {allAds.map((ad) => (
+          <AdCard key={ad.id} ad={ad} />
+        ))}
+      </div>
+
+      {/* Infinite scroll trigger */}
+      <div ref={loadMoreRef} className="flex justify-center py-4">
+        {isFetchingNextPage && (
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        )}
+        {!hasNextPage && allAds.length > 0 && (
+          <p className="text-sm text-muted-foreground">Fim dos resultados</p>
+        )}
+      </div>
     </div>
   );
 }
 
 function AdCard({ ad }: { ad: Ad }) {
+  const navigate = useNavigate();
+  const { toggleSave, isSaved, isPending } = useToggleSaveAd();
   const startDate = ad.start_date ? new Date(ad.start_date) : null;
-  const activeAdsCount = Math.floor(Math.random() * 50) + 5; // Placeholder
+  const saved = isSaved(ad.id);
   
   return (
     <Card className="overflow-hidden hover:border-primary/30 transition-colors group">
@@ -86,8 +145,20 @@ function AdCard({ ad }: { ad: Ad }) {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Heart className="h-4 w-4" />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className={cn(
+                  "h-8 w-8 transition-all",
+                  saved ? "text-red-500" : "opacity-0 group-hover:opacity-100"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleSave(ad.id);
+                }}
+                disabled={isPending}
+              >
+                <Heart className={cn("h-4 w-4", saved && "fill-current")} />
               </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <MoreVertical className="h-4 w-4" />
@@ -98,34 +169,43 @@ function AdCard({ ad }: { ad: Ad }) {
           {/* Stats */}
           <div className="space-y-1">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-primary">{activeAdsCount}</span>
-              <span className="text-sm text-primary font-medium">ads</span>
+              <span className="text-lg font-semibold text-primary">
+                {ad.longevity_days || 0} dias
+              </span>
               {ad.countries && ad.countries.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
+                <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-secondary rounded">
                   {ad.countries[0]}
-                </Badge>
+                </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Found: {startDate ? format(startDate, "dd MMM yyyy", { locale: ptBR }) : "N/A"}
-            </p>
-            <p className="text-xs">
-              <span className="text-muted-foreground">Highest:</span>{" "}
-              <span className="text-primary font-medium">{activeAdsCount + 5} Active Ads</span>{" "}
-              <span className="text-muted-foreground">
-                {startDate ? formatDistanceToNow(startDate, { addSuffix: true, locale: ptBR }) : ""}
-              </span>
-            </p>
+            {ad.headline && (
+              <p className="text-sm font-medium line-clamp-1">{ad.headline}</p>
+            )}
           </div>
 
           {/* Actions */}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs">
-              Page on Ad Library
-              <ExternalLink className="h-3 w-3 ml-1" />
-            </Button>
+            {ad.ad_library_id && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1 h-8 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(`https://www.facebook.com/ads/library/?id=${ad.ad_library_id}`, '_blank');
+                }}
+              >
+                Ad Library
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+            )}
           </div>
-          <Button variant="outline" size="sm" className="w-full h-8 text-xs justify-between">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full h-8 text-xs justify-between"
+            onClick={() => navigate(`/ads/${ad.id}`)}
+          >
             Detalhes
             <ChevronRight className="h-3 w-3" />
           </Button>
@@ -142,7 +222,10 @@ function AdCard({ ad }: { ad: Ad }) {
         </div>
 
         {/* Media Preview */}
-        <div className="relative aspect-square bg-secondary">
+        <div 
+          className="relative aspect-square bg-secondary cursor-pointer"
+          onClick={() => navigate(`/ads/${ad.id}`)}
+        >
           {ad.media_url ? (
             <img 
               src={ad.media_url} 
@@ -169,7 +252,7 @@ function AdCard({ ad }: { ad: Ad }) {
           {ad.media_type === "video" && (
             <div className="absolute bottom-2 left-2 bg-black/70 rounded px-2 py-1 flex items-center gap-1">
               <Play className="h-3 w-3 text-white" fill="white" />
-              <span className="text-xs text-white">0:00</span>
+              <span className="text-xs text-white">Video</span>
             </div>
           )}
         </div>

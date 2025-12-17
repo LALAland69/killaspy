@@ -8,6 +8,8 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdsPage from "./pages/AdsPage";
+import AdDetailPage from "./pages/AdDetailPage";
+import SavedAdsPage from "./pages/SavedAdsPage";
 import AdvertisersPage from "./pages/AdvertisersPage";
 import AdvertiserProfilePage from "./pages/AdvertiserProfilePage";
 import DomainsPage from "./pages/DomainsPage";
@@ -41,6 +43,16 @@ const App = () => (
             <Route path="/ads" element={
               <ProtectedRoute>
                 <AdsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/ads/:id" element={
+              <ProtectedRoute>
+                <AdDetailPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/saved-ads" element={
+              <ProtectedRoute>
+                <SavedAdsPage />
               </ProtectedRoute>
             } />
             <Route path="/advertisers" element={
