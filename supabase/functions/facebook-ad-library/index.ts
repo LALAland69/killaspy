@@ -86,7 +86,6 @@ async function processAndStoreAds(ads: FacebookAd[], tenantId: string, supabase:
 
   for (const ad of ads) {
     try {
-      // First, check/create advertiser
       let advertiserId: string | null = null;
       
       if (ad.page_id) {
@@ -118,7 +117,6 @@ async function processAndStoreAds(ads: FacebookAd[], tenantId: string, supabase:
         }
       }
 
-      // Check if ad already exists
       const { data: existingAd } = await supabase
         .from('ads')
         .select('id')
@@ -181,6 +179,91 @@ async function processAndStoreAds(ads: FacebookAd[], tenantId: string, supabase:
   return results;
 }
 
+async function runScheduledImports(supabaseAdmin: any) {
+  console.log('Running scheduled imports...');
+  
+  const { data: schedules, error } = await supabaseAdmin
+    .from('import_schedules')
+    .select('*')
+    .eq('is_active', true);
+
+  if (error) {
+    console.error('Error fetching schedules:', error);
+    throw error;
+  }
+
+  console.log(`Found ${schedules?.length || 0} active schedules`);
+
+  const allResults = {
+    schedules_processed: 0,
+    total_imported: 0,
+    total_updated: 0,
+    total_errors: 0,
+  };
+
+  for (const schedule of schedules || []) {
+    try {
+      console.log(`Processing schedule: ${schedule.name} for tenant: ${schedule.tenant_id}`);
+      
+      const params: AdLibraryParams = {
+        search_terms: schedule.search_terms || undefined,
+        search_page_ids: schedule.search_page_ids?.length > 0 ? schedule.search_page_ids : undefined,
+        ad_reached_countries: schedule.ad_reached_countries || ['US'],
+        ad_active_status: schedule.ad_active_status || 'ACTIVE',
+        limit: schedule.import_limit || 50,
+      };
+
+      const ads = await fetchFromAdLibrary(params);
+      const results = await processAndStoreAds(ads, schedule.tenant_id, supabaseAdmin);
+
+      // Update last run time
+      await supabaseAdmin
+        .from('import_schedules')
+        .update({ last_run_at: new Date().toISOString() })
+        .eq('id', schedule.id);
+
+      // Log the job run
+      await supabaseAdmin.from('job_runs').insert({
+        tenant_id: schedule.tenant_id,
+        job_name: `Scheduled Import: ${schedule.name}`,
+        task_type: 'ad_import',
+        schedule_type: 'scheduled',
+        status: 'completed',
+        ads_processed: ads.length,
+        completed_at: new Date().toISOString(),
+        metadata: { 
+          schedule_id: schedule.id,
+          search_params: params,
+          results 
+        },
+      });
+
+      allResults.schedules_processed++;
+      allResults.total_imported += results.imported;
+      allResults.total_updated += results.updated;
+      allResults.total_errors += results.errors;
+
+    } catch (err) {
+      console.error(`Error processing schedule ${schedule.id}:`, err);
+      
+      // Log failed job
+      await supabaseAdmin.from('job_runs').insert({
+        tenant_id: schedule.tenant_id,
+        job_name: `Scheduled Import: ${schedule.name}`,
+        task_type: 'ad_import',
+        schedule_type: 'scheduled',
+        status: 'failed',
+        error_message: err instanceof Error ? err.message : 'Unknown error',
+        completed_at: new Date().toISOString(),
+      });
+
+      allResults.total_errors++;
+    }
+  }
+
+  return allResults;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -191,17 +274,32 @@ serve(async (req) => {
       throw new Error('Facebook Access Token not configured');
     }
 
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const body = await req.json();
+    const { action, params } = body;
+
+    console.log('Action:', action);
+
+    // Handle scheduled/cron calls (no auth required)
+    if (action === 'scheduled') {
+      const results = await runScheduledImports(supabaseAdmin);
+      
+      return new Response(
+        JSON.stringify({ success: true, results }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // For user-initiated actions, require auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Missing authorization header');
     }
 
-    // Create Supabase client with user's token for RLS
     const supabaseUser = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } }
     });
 
-    // Get user's tenant_id
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) {
       throw new Error('Unauthorized');
@@ -217,13 +315,7 @@ serve(async (req) => {
       throw new Error('User tenant not found');
     }
 
-    // Use service role client for inserts (bypasses RLS)
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    const body = await req.json();
-    const { action, params } = body;
-
-    console.log('Action:', action, 'Params:', params);
+    console.log('Params:', params);
 
     if (action === 'search') {
       const ads = await fetchFromAdLibrary(params);
@@ -251,7 +343,6 @@ serve(async (req) => {
       const ads = await fetchFromAdLibrary(params);
       const results = await processAndStoreAds(ads, profile.tenant_id, supabaseAdmin);
 
-      // Log the job run
       await supabaseAdmin.from('job_runs').insert({
         tenant_id: profile.tenant_id,
         job_name: 'Facebook Ad Library Import',
