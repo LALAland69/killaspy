@@ -23,7 +23,8 @@ import {
   Flag,
   Languages,
   Monitor,
-  AlertTriangle
+  AlertTriangle,
+  Trophy
 } from "lucide-react";
 import type { AdCategory } from "@/hooks/useAdCategories";
 import type { AdsFilters } from "@/pages/Ads";
@@ -146,6 +147,7 @@ export function AdsFiltersBar({ filters, onFiltersChange, categories }: AdsFilte
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-popover border border-border z-50">
+              <SelectItem value="winning">🏆 Winning Score</SelectItem>
               <SelectItem value="recent">Mais Recentes</SelectItem>
               <SelectItem value="oldest">Mais Antigos</SelectItem>
               <SelectItem value="score_high">Maior Score</SelectItem>
@@ -313,6 +315,27 @@ export function AdsFiltersBar({ filters, onFiltersChange, categories }: AdsFilte
               <SelectItem value="high">Alto (61-100)</SelectItem>
               <SelectItem value="medium">Médio (31-60)</SelectItem>
               <SelectItem value="low">Baixo (0-30)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Winning Ads Filter */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <Trophy className="h-3.5 w-3.5" />
+            Winning Ads
+          </label>
+          <Select value={filters.winningTier || "all"} onValueChange={(v) => updateFilter("winningTier", v)}>
+            <SelectTrigger className="h-9 bg-background border-border/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border border-border z-50">
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="winners">🏆 Só Vencedores (70+)</SelectItem>
+              <SelectItem value="champion">🥇 Champions (85+)</SelectItem>
+              <SelectItem value="strong">💪 Strong (70-84)</SelectItem>
+              <SelectItem value="promising">📈 Promising (50-69)</SelectItem>
+              <SelectItem value="testing">🧪 Testing (0-49)</SelectItem>
             </SelectContent>
           </Select>
         </div>

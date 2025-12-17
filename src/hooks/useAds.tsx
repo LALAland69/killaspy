@@ -14,6 +14,7 @@ export interface AdsFilters {
   status?: string;
   riskLevel?: string;
   sortBy?: string;
+  winningTier?: string;
 }
 
 const PAGE_SIZE = 20;
@@ -78,7 +79,12 @@ export function useInfiniteAds(filters?: AdsFilters) {
         `, { count: "exact" });
 
       // Apply sorting
-      if (filters?.sortBy === "oldest") {
+      if (filters?.sortBy === "winning") {
+        // Sort by winning score formula: longevity * 0.6 + engagement * 0.4
+        // Since we can't do complex math in Supabase, prioritize longevity then engagement
+        query = query.order("longevity_days", { ascending: false })
+                     .order("engagement_score", { ascending: false });
+      } else if (filters?.sortBy === "oldest") {
         query = query.order("created_at", { ascending: true });
       } else if (filters?.sortBy === "score_high") {
         query = query.order("suspicion_score", { ascending: false });
@@ -115,6 +121,26 @@ export function useInfiniteAds(filters?: AdsFilters) {
           query = query.gte("suspicion_score", 31).lt("suspicion_score", 61);
         } else if (filters.riskLevel === "low") {
           query = query.lt("suspicion_score", 31);
+        }
+      }
+
+      // Filter by winning tier
+      if (filters?.winningTier && filters.winningTier !== "all") {
+        // Winning score thresholds based on longevity primarily
+        // champion: 85+ → longevity 51+ days (85/60*0.6 ≈ 51 days for 85 score)
+        // strong: 70-84 → longevity 42-50 days  
+        // promising: 50-69 → longevity 30-41 days
+        // testing: 0-49 → longevity <30 days
+        if (filters.winningTier === "winners") {
+          query = query.gte("longevity_days", 42);
+        } else if (filters.winningTier === "champion") {
+          query = query.gte("longevity_days", 51);
+        } else if (filters.winningTier === "strong") {
+          query = query.gte("longevity_days", 42).lt("longevity_days", 51);
+        } else if (filters.winningTier === "promising") {
+          query = query.gte("longevity_days", 30).lt("longevity_days", 42);
+        } else if (filters.winningTier === "testing") {
+          query = query.lt("longevity_days", 30);
         }
       }
 

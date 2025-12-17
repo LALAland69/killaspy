@@ -4,11 +4,13 @@ import { AdVariationsPanel } from "@/components/ads/AdVariationsPanel";
 import { VariationPerformanceCharts } from "@/components/ads/VariationPerformanceCharts";
 import { VariationExport } from "@/components/ads/VariationExport";
 import { AdsFiltersBar } from "@/components/ads/AdsFiltersBar";
+import { CopyAnalyzer } from "@/components/ads/CopyAnalyzer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Table2, Copy, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
+import { Download, Table2, Copy, TrendingUp, RefreshCw, Loader2, Sparkles, Trophy } from "lucide-react";
 import { useAdCategories } from "@/hooks/useAdCategories";
 import { Badge } from "@/components/ui/badge";
+import type { Ad } from "@/hooks/useAds";
 
 export interface AdsFilters {
   search: string;
@@ -22,6 +24,7 @@ export interface AdsFilters {
   sortBy: string;
   dateRange: string;
   riskLevel: string;
+  winningTier: string;
 }
 
 const initialFilters: AdsFilters = {
@@ -33,14 +36,16 @@ const initialFilters: AdsFilters = {
   platform: "all",
   status: "all",
   mediaType: "all",
-  sortBy: "recent",
-  dateRange: "today", // Default to today
+  sortBy: "winning", // Default to winning score
+  dateRange: "all",
   riskLevel: "all",
+  winningTier: "all",
 };
 
 export default function Ads() {
   const [filters, setFilters] = useState<AdsFilters>(initialFilters);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedAds, setSelectedAds] = useState<Ad[]>([]);
   const { data: categories } = useAdCategories();
 
   const totalAds = categories?.reduce((sum, cat) => sum + cat.ads_count, 0) || 0;
@@ -79,6 +84,10 @@ export default function Ads() {
             <Table2 className="h-4 w-4" />
             Todos os Ads
           </TabsTrigger>
+          <TabsTrigger value="winners" className="gap-2">
+            <Trophy className="h-4 w-4" />
+            Winners
+          </TabsTrigger>
           <TabsTrigger value="variations" className="gap-2">
             <Copy className="h-4 w-4" />
             Variações
@@ -86,6 +95,10 @@ export default function Ads() {
           <TabsTrigger value="trends" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Tendências
+          </TabsTrigger>
+          <TabsTrigger value="copyai" className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            Copy AI
           </TabsTrigger>
         </TabsList>
 
@@ -119,7 +132,24 @@ export default function Ads() {
           </div>
 
           {/* Ads Grid */}
-          <AdsGrid filters={filters} />
+          <AdsGrid filters={filters} onSelectionChange={setSelectedAds} />
+        </TabsContent>
+
+        <TabsContent value="winners" className="space-y-6">
+          {/* Filters Panel */}
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+            <AdsFiltersBar 
+              filters={{ ...filters, winningTier: "winners" }} 
+              onFiltersChange={setFilters}
+              categories={categories || []}
+            />
+          </div>
+
+          {/* Winners Grid */}
+          <AdsGrid 
+            filters={{ ...filters, winningTier: "winners" }} 
+            onSelectionChange={setSelectedAds} 
+          />
         </TabsContent>
 
         <TabsContent value="variations" className="space-y-6">
@@ -134,6 +164,24 @@ export default function Ads() {
             <VariationExport />
           </div>
           <VariationPerformanceCharts />
+        </TabsContent>
+
+        <TabsContent value="copyai" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Selecione Ads de Referência</h3>
+              <p className="text-sm text-muted-foreground">
+                Selecione anúncios vencedores no grid abaixo para analisar padrões ou gerar novas copies.
+              </p>
+              <AdsGrid 
+                filters={{ ...filters, winningTier: "winners", sortBy: "winning" }} 
+                onSelectionChange={setSelectedAds} 
+              />
+            </div>
+            <div className="space-y-4">
+              <CopyAnalyzer selectedAds={selectedAds} />
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
