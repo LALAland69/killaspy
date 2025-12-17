@@ -1,5 +1,7 @@
 import { AdsTable } from "@/components/ads/AdsTable";
 import { AdVariationsPanel } from "@/components/ads/AdVariationsPanel";
+import { VariationPerformanceCharts } from "@/components/ads/VariationPerformanceCharts";
+import { VariationExport } from "@/components/ads/VariationExport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Filter, Download, Table2, Copy } from "lucide-react";
+import { Filter, Download, Table2, Copy, TrendingUp } from "lucide-react";
 
 export default function Ads() {
   return (
@@ -36,6 +38,10 @@ export default function Ads() {
           <TabsTrigger value="variations" className="gap-2">
             <Copy className="h-4 w-4" />
             Creative Variations
+          </TabsTrigger>
+          <TabsTrigger value="trends" className="gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Performance Trends
           </TabsTrigger>
         </TabsList>
 
@@ -112,8 +118,18 @@ export default function Ads() {
           </div>
         </TabsContent>
 
-        <TabsContent value="variations">
+        <TabsContent value="variations" className="space-y-6">
+          <div className="flex justify-end">
+            <VariationExport />
+          </div>
           <AdVariationsPanel />
+        </TabsContent>
+
+        <TabsContent value="trends" className="space-y-6">
+          <div className="flex justify-end">
+            <VariationExport />
+          </div>
+          <VariationPerformanceCharts />
         </TabsContent>
       </Tabs>
     </div>
