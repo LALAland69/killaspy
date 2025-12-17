@@ -1,53 +1,69 @@
 import { useState } from "react";
-import { AdsTable } from "@/components/ads/AdsTable";
+import { AdsGrid } from "@/components/ads/AdsGrid";
 import { AdVariationsPanel } from "@/components/ads/AdVariationsPanel";
 import { VariationPerformanceCharts } from "@/components/ads/VariationPerformanceCharts";
 import { VariationExport } from "@/components/ads/VariationExport";
+import { AdsFiltersBar } from "@/components/ads/AdsFiltersBar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Filter, Download, Table2, Copy, TrendingUp, Search, Database } from "lucide-react";
+import { Download, Table2, Copy, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
 import { useAdCategories } from "@/hooks/useAdCategories";
 import { Badge } from "@/components/ui/badge";
 
 export interface AdsFilters {
   search: string;
+  searchBy: string;
   category: string;
   country: string;
+  language: string;
+  platform: string;
   status: string;
+  mediaType: string;
+  sortBy: string;
+  dateRange: string;
   riskLevel: string;
 }
 
+const initialFilters: AdsFilters = {
+  search: "",
+  searchBy: "all",
+  category: "all",
+  country: "all",
+  language: "all",
+  platform: "all",
+  status: "all",
+  mediaType: "all",
+  sortBy: "recent",
+  dateRange: "all",
+  riskLevel: "all",
+};
+
 export default function Ads() {
-  const [filters, setFilters] = useState<AdsFilters>({
-    search: "",
-    category: "all",
-    country: "all",
-    status: "all",
-    riskLevel: "all",
-  });
+  const [filters, setFilters] = useState<AdsFilters>(initialFilters);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { data: categories } = useAdCategories();
 
   const totalAds = categories?.reduce((sum, cat) => sum + cat.ads_count, 0) || 0;
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => setIsRefreshing(false), 1000);
+  };
+
+  const handleReset = () => {
+    setFilters(initialFilters);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
-            <Database className="h-5 w-5" />
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Biblioteca de Ads
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pesquise na biblioteca interna do KillaSpy
+            Pesquise e explore ads coletados automaticamente
             <Badge variant="secondary" className="ml-2">{totalAds.toLocaleString()} ads</Badge>
           </p>
         </div>
@@ -65,7 +81,7 @@ export default function Ads() {
           </TabsTrigger>
           <TabsTrigger value="variations" className="gap-2">
             <Copy className="h-4 w-4" />
-            Variações de Criativos
+            Variações
           </TabsTrigger>
           <TabsTrigger value="trends" className="gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -74,96 +90,36 @@ export default function Ads() {
         </TabsList>
 
         <TabsContent value="all" className="space-y-6">
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Pesquisar na biblioteca..."
-                className="h-9 w-72 pl-9 bg-secondary/50"
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              />
-            </div>
-            <Select
-              value={filters.category}
-              onValueChange={(value) => setFilters({ ...filters, category: value })}
-            >
-              <SelectTrigger className="h-9 w-44 bg-secondary/50">
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas Categorias</SelectItem>
-                {categories?.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name} ({cat.ads_count})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={filters.country}
-              onValueChange={(value) => setFilters({ ...filters, country: value })}
-            >
-              <SelectTrigger className="h-9 w-32 bg-secondary/50">
-                <SelectValue placeholder="País" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="US">Estados Unidos</SelectItem>
-                <SelectItem value="BR">Brasil</SelectItem>
-                <SelectItem value="UK">Reino Unido</SelectItem>
-                <SelectItem value="CA">Canadá</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={filters.status}
-              onValueChange={(value) => setFilters({ ...filters, status: value })}
-            >
-              <SelectTrigger className="h-9 w-32 bg-secondary/50">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="active">Ativos</SelectItem>
-                <SelectItem value="inactive">Inativos</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={filters.riskLevel}
-              onValueChange={(value) => setFilters({ ...filters, riskLevel: value })}
-            >
-              <SelectTrigger className="h-9 w-36 bg-secondary/50">
-                <SelectValue placeholder="Nível de Risco" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="high">Alto (61-100)</SelectItem>
-                <SelectItem value="medium">Médio (31-60)</SelectItem>
-                <SelectItem value="low">Baixo (0-30)</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-              <Filter className="h-4 w-4" />
-              Mais Filtros
-            </Button>
-          </div>
-
-          {/* Table */}
-          <AdsTable filters={filters} />
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between text-sm">
-            <p className="text-muted-foreground">Mostrando ads da biblioteca interna</p>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled>
-                Anterior
+          {/* Filters Panel */}
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+            <AdsFiltersBar 
+              filters={filters} 
+              onFiltersChange={setFilters}
+              categories={categories || []}
+            />
+            
+            {/* Action buttons */}
+            <div className="flex items-center gap-3 pt-2">
+              <Button 
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="bg-primary hover:bg-primary/90 gap-2"
+              >
+                {isRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Aplicar Filtros
               </Button>
-              <Button variant="outline" size="sm">
-                Próximo
+              <Button variant="ghost" size="sm" onClick={handleReset}>
+                Limpar Filtros
               </Button>
             </div>
           </div>
+
+          {/* Ads Grid */}
+          <AdsGrid filters={filters} />
         </TabsContent>
 
         <TabsContent value="variations" className="space-y-6">
