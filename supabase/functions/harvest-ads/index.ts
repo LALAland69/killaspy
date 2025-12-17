@@ -10,6 +10,9 @@ const FACEBOOK_ACCESS_TOKEN = Deno.env.get("FACEBOOK_ACCESS_TOKEN");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Filter for 2025 ads only
+const AD_DELIVERY_DATE_MIN = "2025-01-01";
+
 interface FacebookAd {
   id: string;
   ad_creation_time?: string;
@@ -32,7 +35,8 @@ interface FacebookAd {
 async function fetchAdsForKeyword(
   keyword: string,
   country: string,
-  limit: number = 25
+  limit: number = 100,
+  activeOnly: boolean = false
 ): Promise<FacebookAd[]> {
   if (!FACEBOOK_ACCESS_TOKEN) {
     console.error("FACEBOOK_ACCESS_TOKEN not configured");
@@ -43,12 +47,15 @@ async function fetchAdsForKeyword(
     access_token: FACEBOOK_ACCESS_TOKEN,
     search_terms: keyword,
     ad_reached_countries: `["${country}"]`,
-    ad_active_status: "ACTIVE",
+    ad_active_status: activeOnly ? "ACTIVE" : "ALL",
+    ad_delivery_date_min: AD_DELIVERY_DATE_MIN,
     fields: "id,ad_creation_time,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_descriptions,ad_creative_link_titles,ad_snapshot_url,languages,publisher_platforms,estimated_audience_size,impressions,spend",
     limit: limit.toString(),
   });
 
   try {
+    console.log(`Fetching ${activeOnly ? 'ACTIVE' : 'ALL'} ads for "${keyword}" in ${country} (2025+, limit: ${limit})`);
+    
     const response = await fetch(
       `https://graph.facebook.com/v21.0/ads_archive?${params}`
     );
@@ -60,11 +67,75 @@ async function fetchAdsForKeyword(
     }
 
     const result = await response.json();
-    return result.data || [];
+    const ads = result.data || [];
+    console.log(`Got ${ads.length} ads for "${keyword}" in ${country}`);
+    return ads;
   } catch (error) {
     console.error(`Error fetching ads for keyword "${keyword}":`, error);
     return [];
   }
+}
+
+async function fetchAllPagesForKeyword(
+  keyword: string,
+  country: string,
+  maxAds: number = 500
+): Promise<FacebookAd[]> {
+  if (!FACEBOOK_ACCESS_TOKEN) {
+    console.error("FACEBOOK_ACCESS_TOKEN not configured");
+    return [];
+  }
+
+  const allAds: FacebookAd[] = [];
+  let nextUrl: string | null = null;
+  const limit = 100; // Max per request
+
+  const params = new URLSearchParams({
+    access_token: FACEBOOK_ACCESS_TOKEN,
+    search_terms: keyword,
+    ad_reached_countries: `["${country}"]`,
+    ad_active_status: "ALL",
+    ad_delivery_date_min: AD_DELIVERY_DATE_MIN,
+    fields: "id,ad_creation_time,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_descriptions,ad_creative_link_titles,ad_snapshot_url,languages,publisher_platforms,estimated_audience_size,impressions,spend",
+    limit: limit.toString(),
+  });
+
+  let url = `https://graph.facebook.com/v21.0/ads_archive?${params}`;
+
+  while (url && allAds.length < maxAds) {
+    try {
+      console.log(`Fetching page for "${keyword}" in ${country} (collected: ${allAds.length})`);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Facebook API error for keyword "${keyword}":`, errorText);
+        break;
+      }
+
+      const result = await response.json();
+      const ads = result.data || [];
+      allAds.push(...ads);
+      
+      // Check for next page
+      nextUrl = result.paging?.next || null;
+      url = nextUrl!;
+      
+      if (!nextUrl || ads.length < limit) {
+        break;
+      }
+      
+      // Small delay between pages
+      await new Promise(resolve => setTimeout(resolve, 300));
+    } catch (error) {
+      console.error(`Error fetching ads for keyword "${keyword}":`, error);
+      break;
+    }
+  }
+
+  console.log(`Total collected for "${keyword}" in ${country}: ${allAds.length} ads`);
+  return allAds;
 }
 
 async function processAndStoreAds(
@@ -176,13 +247,15 @@ serve(async (req) => {
     let tenantId: string | null = null;
     let categoryId: string | null = null;
     let isScheduled = false;
+    let fullHarvest = false;
 
     const body = await req.json().catch(() => ({}));
     
     if (body.scheduled === true) {
       // Scheduled job - process all active categories
       isScheduled = true;
-      console.log("Running scheduled harvest for all tenants");
+      fullHarvest = body.fullHarvest === true;
+      console.log(`Running ${fullHarvest ? 'FULL' : 'incremental'} scheduled harvest for all tenants (2025 ads only)`);
     } else if (authHeader) {
       // User-initiated harvest
       const supabaseClient = createClient(
@@ -214,6 +287,7 @@ serve(async (req) => {
 
       tenantId = profile.tenant_id;
       categoryId = body.categoryId;
+      fullHarvest = body.fullHarvest === true;
     }
 
     // Fetch categories to process
@@ -251,8 +325,16 @@ serve(async (req) => {
       // Fetch ads for each keyword in each country
       for (const keyword of category.keywords) {
         for (const country of category.countries) {
-          console.log(`Fetching ads for keyword "${keyword}" in ${country}`);
-          const ads = await fetchAdsForKeyword(keyword, country, 10);
+          let ads: FacebookAd[];
+          
+          if (fullHarvest) {
+            // Full harvest - paginate through all available ads (up to 500 per keyword/country)
+            ads = await fetchAllPagesForKeyword(keyword, country, 500);
+          } else {
+            // Incremental - just fetch latest 100 ads
+            ads = await fetchAdsForKeyword(keyword, country, 100, false);
+          }
+          
           allAds.push(...ads);
           
           // Small delay to avoid rate limiting
@@ -298,14 +380,19 @@ serve(async (req) => {
     // Log job run if scheduled
     if (isScheduled) {
       await supabaseAdmin.from("job_runs").insert({
-        job_name: "Harvest Ads",
+        job_name: fullHarvest ? "Full Harvest Ads 2025" : "Incremental Harvest Ads",
         task_type: "ad_harvest",
-        schedule_type: "hourly",
+        schedule_type: fullHarvest ? "manual" : "6h",
         status: totalErrors > 0 ? "completed_with_errors" : "completed",
         ads_processed: totalImported + totalUpdated,
         errors_count: totalErrors,
         completed_at: new Date().toISOString(),
-        metadata: { imported: totalImported, updated: totalUpdated },
+        metadata: { 
+          imported: totalImported, 
+          updated: totalUpdated,
+          year_filter: "2025",
+          harvest_type: fullHarvest ? "full" : "incremental"
+        },
       });
     }
 
@@ -315,6 +402,8 @@ serve(async (req) => {
         imported: totalImported,
         updated: totalUpdated,
         errors: totalErrors,
+        yearFilter: "2025",
+        harvestType: fullHarvest ? "full" : "incremental",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
