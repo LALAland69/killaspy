@@ -6,6 +6,52 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// URL validation to prevent SSRF attacks
+function isValidExternalUrl(urlString: string): boolean {
+  try {
+    const url = new URL(urlString);
+    
+    // Only allow http and https protocols
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return false;
+    }
+    
+    const hostname = url.hostname.toLowerCase();
+    
+    // Block localhost and loopback
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+      return false;
+    }
+    
+    // Block internal/private IP ranges
+    const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+      const [, a, b, c] = ipv4Match.map(Number);
+      
+      // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 - Private
+      if (a === 10) return false;
+      if (a === 172 && b >= 16 && b <= 31) return false;
+      if (a === 192 && b === 168) return false;
+      // 169.254.0.0/16 - Link-local (AWS metadata)
+      if (a === 169 && b === 254) return false;
+      // 127.0.0.0/8 - Loopback
+      if (a === 127) return false;
+      // 0.0.0.0/8 - Current network
+      if (a === 0) return false;
+    }
+    
+    // Block common internal hostnames
+    const blockedPatterns = [/\.local$/, /\.internal$/, /\.corp$/, /\.lan$/, /^metadata\.google\.internal$/];
+    for (const pattern of blockedPatterns) {
+      if (pattern.test(hostname)) return false;
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // User-Agent variations
 const USER_AGENTS = {
   bot: "Googlebot/2.1 (+http://www.google.com/bot.html)",
@@ -51,6 +97,12 @@ async function testUrlForDivergence(
   ad: any,
   targetUrl: string
 ): Promise<{ divergenceFound: boolean; blackUrl: string | null; error?: string }> {
+  // Validate URL before fetching to prevent SSRF
+  if (!isValidExternalUrl(targetUrl)) {
+    console.warn(`Skipping invalid/internal URL: ${targetUrl}`);
+    return { divergenceFound: false, blackUrl: null, error: `Invalid or internal URL blocked: ${targetUrl}` };
+  }
+  
   const token = deduceCloakerToken(targetUrl);
   
   let whiteHash = "";
@@ -329,6 +381,14 @@ serve(async (req) => {
       
       for (const ad of ads || []) {
         if (!ad.final_lp_url) continue;
+        
+        // Validate URL before fetching to prevent SSRF
+        if (!isValidExternalUrl(ad.final_lp_url)) {
+          console.warn(`Skipping invalid/internal URL for ad ${ad.id}: ${ad.final_lp_url}`);
+          errorsCount++;
+          errors.push(`Invalid/internal URL blocked for ${ad.id}`);
+          continue;
+        }
         
         try {
           const response = await fetch(ad.final_lp_url, {
