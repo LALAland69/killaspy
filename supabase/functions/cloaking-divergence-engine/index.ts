@@ -7,6 +7,45 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// URL validation to prevent SSRF attacks
+function isValidExternalUrl(urlString: string): { valid: boolean; error?: string } {
+  try {
+    const url = new URL(urlString);
+    
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return { valid: false, error: "Only HTTP and HTTPS protocols are allowed" };
+    }
+    
+    const hostname = url.hostname.toLowerCase();
+    
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+      return { valid: false, error: "Localhost URLs are not allowed" };
+    }
+    
+    const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+      const [, a, b] = ipv4Match.map(Number);
+      if (a === 10) return { valid: false, error: "Private IP addresses are not allowed" };
+      if (a === 172 && b >= 16 && b <= 31) return { valid: false, error: "Private IP addresses are not allowed" };
+      if (a === 192 && b === 168) return { valid: false, error: "Private IP addresses are not allowed" };
+      if (a === 169 && b === 254) return { valid: false, error: "Link-local addresses are not allowed" };
+      if (a === 127) return { valid: false, error: "Loopback addresses are not allowed" };
+      if (a === 0) return { valid: false, error: "Invalid IP address" };
+    }
+    
+    const blockedPatterns = [/\.local$/, /\.internal$/, /\.corp$/, /\.lan$/, /^metadata\.google\.internal$/];
+    for (const pattern of blockedPatterns) {
+      if (pattern.test(hostname)) {
+        return { valid: false, error: "Internal hostnames are not allowed" };
+      }
+    }
+    
+    return { valid: true };
+  } catch {
+    return { valid: false, error: "Invalid URL format" };
+  }
+}
+
 // User-Agent variations for testing
 const USER_AGENTS = {
   bot: "Googlebot/2.1 (+http://www.google.com/bot.html)",
@@ -228,6 +267,16 @@ serve(async (req) => {
     if (!adId || !targetUrl) {
       return new Response(
         JSON.stringify({ error: "adId and targetUrl are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Validate target URL to prevent SSRF
+    const urlValidation = isValidExternalUrl(targetUrl);
+    if (!urlValidation.valid) {
+      console.error("URL validation failed:", urlValidation.error);
+      return new Response(
+        JSON.stringify({ error: `Invalid target URL: ${urlValidation.error}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

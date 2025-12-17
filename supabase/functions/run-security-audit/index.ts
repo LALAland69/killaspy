@@ -6,6 +6,45 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// URL validation to prevent SSRF attacks
+function isValidExternalUrl(urlString: string): { valid: boolean; error?: string } {
+  try {
+    const url = new URL(urlString);
+    
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return { valid: false, error: "Only HTTP and HTTPS protocols are allowed" };
+    }
+    
+    const hostname = url.hostname.toLowerCase();
+    
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+      return { valid: false, error: "Localhost URLs are not allowed" };
+    }
+    
+    const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+      const [, a, b] = ipv4Match.map(Number);
+      if (a === 10) return { valid: false, error: "Private IP addresses are not allowed" };
+      if (a === 172 && b >= 16 && b <= 31) return { valid: false, error: "Private IP addresses are not allowed" };
+      if (a === 192 && b === 168) return { valid: false, error: "Private IP addresses are not allowed" };
+      if (a === 169 && b === 254) return { valid: false, error: "Link-local addresses are not allowed" };
+      if (a === 127) return { valid: false, error: "Loopback addresses are not allowed" };
+      if (a === 0) return { valid: false, error: "Invalid IP address" };
+    }
+    
+    const blockedPatterns = [/\.local$/, /\.internal$/, /\.corp$/, /\.lan$/, /^metadata\.google\.internal$/];
+    for (const pattern of blockedPatterns) {
+      if (pattern.test(hostname)) {
+        return { valid: false, error: "Internal hostnames are not allowed" };
+      }
+    }
+    
+    return { valid: true };
+  } catch {
+    return { valid: false, error: "Invalid URL format" };
+  }
+}
+
 interface AuditConfig {
   modules?: string[];
   depth?: number;
@@ -443,6 +482,24 @@ serve(async (req) => {
     console.log(`Starting audit ${auditId} for URL: ${audit.target_url}`);
 
     const targetUrl = audit.target_url;
+    
+    // Validate target URL to prevent SSRF
+    if (targetUrl) {
+      const urlValidation = isValidExternalUrl(targetUrl);
+      if (!urlValidation.valid) {
+        console.error("URL validation failed:", urlValidation.error);
+        await supabase
+          .from("security_audits")
+          .update({ 
+            status: "failed", 
+            completed_at: new Date().toISOString() 
+          })
+          .eq("id", auditId);
+        
+        throw new Error(`Invalid target URL: ${urlValidation.error}`);
+      }
+    }
+    
     const targetDomain = audit.target_domain || (targetUrl ? new URL(targetUrl).hostname : null);
     const config = (audit.config || {}) as AuditConfig;
     

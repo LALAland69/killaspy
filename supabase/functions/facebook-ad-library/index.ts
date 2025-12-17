@@ -4,8 +4,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
+
+// Verify cron/scheduled request authenticity using service role key
+function isValidScheduledRequest(req: Request): boolean {
+  const cronSecret = req.headers.get('x-cron-secret');
+  const authHeader = req.headers.get('authorization');
+  
+  // Accept either x-cron-secret header matching service role key
+  // or Bearer token matching service role key
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (cronSecret && cronSecret === serviceRoleKey) {
+    return true;
+  }
+  
+  if (authHeader) {
+    const token = authHeader.replace('Bearer ', '');
+    if (token === serviceRoleKey) {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 const FACEBOOK_ACCESS_TOKEN = Deno.env.get('FACEBOOK_ACCESS_TOKEN');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -280,8 +303,17 @@ serve(async (req) => {
 
     console.log('Action:', action);
 
-    // Handle scheduled/cron calls (no auth required)
+    // Handle scheduled/cron calls (requires service role key verification)
     if (action === 'scheduled') {
+      if (!isValidScheduledRequest(req)) {
+        console.error('Unauthorized scheduled request attempt');
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized: Invalid or missing cron authentication' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log('Authenticated scheduled import request');
       const results = await runScheduledImports(supabaseAdmin);
       
       return new Response(
