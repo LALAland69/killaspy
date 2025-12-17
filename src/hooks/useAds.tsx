@@ -7,9 +7,17 @@ export type Ad = Tables<"ads"> & {
   domains?: Tables<"domains"> | null;
 };
 
-export function useAds(limit?: number) {
+export interface AdsFilters {
+  search?: string;
+  category?: string;
+  country?: string;
+  status?: string;
+  riskLevel?: string;
+}
+
+export function useAds(limit?: number, filters?: AdsFilters) {
   return useQuery({
-    queryKey: ["ads", limit],
+    queryKey: ["ads", limit, filters],
     queryFn: async () => {
       let query = supabase
         .from("ads")
@@ -19,6 +27,29 @@ export function useAds(limit?: number) {
           domains(*)
         `)
         .order("suspicion_score", { ascending: false });
+
+      // Apply filters
+      if (filters?.category && filters.category !== "all") {
+        query = query.eq("category_id", filters.category);
+      }
+
+      if (filters?.status && filters.status !== "all") {
+        query = query.eq("status", filters.status);
+      }
+
+      if (filters?.search) {
+        query = query.or(`headline.ilike.%${filters.search}%,primary_text.ilike.%${filters.search}%,page_name.ilike.%${filters.search}%`);
+      }
+
+      if (filters?.riskLevel && filters.riskLevel !== "all") {
+        if (filters.riskLevel === "high") {
+          query = query.gte("suspicion_score", 61);
+        } else if (filters.riskLevel === "medium") {
+          query = query.gte("suspicion_score", 31).lt("suspicion_score", 61);
+        } else if (filters.riskLevel === "low") {
+          query = query.lt("suspicion_score", 31);
+        }
+      }
 
       if (limit) {
         query = query.limit(limit);

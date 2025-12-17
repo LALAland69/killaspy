@@ -11,3 +11,15 @@ verify_jwt = false
 
 [functions.facebook-ad-library]
 verify_jwt = true
+
+[functions.harvest-ads]
+verify_jwt = false
+
+[functions.firecrawl-scrape]
+verify_jwt = true
+
+[functions.run-security-audit]
+verify_jwt = true
+
+[functions.validate-trend]
+verify_jwt = true
