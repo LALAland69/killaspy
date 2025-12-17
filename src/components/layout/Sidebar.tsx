@@ -12,7 +12,8 @@ import {
   LogOut,
   History,
   Download,
-  BookOpen
+  BookOpen,
+  Heart
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Ads", href: "/ads", icon: Search },
+  { name: "Ads Salvos", href: "/saved-ads", icon: Heart },
   { name: "Advertisers", href: "/advertisers", icon: Users },
   { name: "Domains", href: "/domains", icon: Globe },
   { name: "Trends", href: "/trends", icon: TrendingUp },
