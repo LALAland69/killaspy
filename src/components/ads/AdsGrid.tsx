@@ -1,7 +1,9 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
+import { WinningScoreBadge } from "@/components/ads/WinningScoreBadge";
 import { 
   ExternalLink, 
   Play, 
@@ -15,6 +17,7 @@ import {
 } from "lucide-react";
 import { useInfiniteAds, type Ad } from "@/hooks/useAds";
 import { useToggleSaveAd } from "@/hooks/useSavedAds";
+import { calculateWinningScore } from "@/hooks/useWinningAds";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link, useNavigate } from "react-router-dom";
@@ -24,9 +27,12 @@ import { cn } from "@/lib/utils";
 interface AdsGridProps {
   filters?: AdsFilters;
   limit?: number;
+  onSelectionChange?: (ads: Ad[]) => void;
 }
 
-export function AdsGrid({ filters }: AdsGridProps) {
+export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
   const {
     data,
     isLoading,
@@ -40,6 +46,7 @@ export function AdsGrid({ filters }: AdsGridProps) {
     status: filters.status,
     riskLevel: filters.riskLevel,
     sortBy: filters.sortBy,
+    winningTier: filters.winningTier,
   } : undefined);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -74,6 +81,26 @@ export function AdsGrid({ filters }: AdsGridProps) {
   const allAds = data?.pages.flatMap(page => page.ads) || [];
   const totalCount = data?.pages[0]?.totalCount || 0;
 
+  // Notify parent of selection changes
+  useEffect(() => {
+    if (onSelectionChange) {
+      const selectedAds = allAds.filter(ad => selectedIds.has(ad.id));
+      onSelectionChange(selectedAds);
+    }
+  }, [selectedIds, allAds, onSelectionChange]);
+
+  const toggleSelect = (adId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(adId)) {
+        next.delete(adId);
+      } else {
+        next.add(adId);
+      }
+      return next;
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-48 items-center justify-center rounded-lg border border-border/50 bg-card">
@@ -98,13 +125,32 @@ export function AdsGrid({ filters }: AdsGridProps) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Mostrando {allAds.length} de {totalCount} ads
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Mostrando {allAds.length} de {totalCount} ads
+          {selectedIds.size > 0 && (
+            <span className="ml-2 text-primary">({selectedIds.size} selecionados)</span>
+          )}
+        </p>
+        {selectedIds.size > 0 && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Limpar seleção
+          </Button>
+        )}
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {allAds.map((ad) => (
-          <AdCard key={ad.id} ad={ad} />
+          <AdCard 
+            key={ad.id} 
+            ad={ad} 
+            isSelected={selectedIds.has(ad.id)}
+            onToggleSelect={() => toggleSelect(ad.id)}
+          />
         ))}
       </div>
 
@@ -121,19 +167,36 @@ export function AdsGrid({ filters }: AdsGridProps) {
   );
 }
 
-function AdCard({ ad }: { ad: Ad }) {
+interface AdCardProps {
+  ad: Ad;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+}
+
+function AdCard({ ad, isSelected, onToggleSelect }: AdCardProps) {
   const navigate = useNavigate();
   const { toggleSave, isSaved, isPending } = useToggleSaveAd();
   const startDate = ad.start_date ? new Date(ad.start_date) : null;
   const saved = isSaved(ad.id);
+  const winningScore = calculateWinningScore(ad);
   
   return (
-    <Card className="overflow-hidden hover:border-primary/30 transition-colors group">
+    <Card className={cn(
+      "overflow-hidden hover:border-primary/30 transition-colors group",
+      isSelected && "border-primary ring-1 ring-primary"
+    )}>
       <CardContent className="p-0">
         {/* Header */}
         <div className="p-4 space-y-3">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
+              {onToggleSelect && (
+                <Checkbox 
+                  checked={isSelected} 
+                  onCheckedChange={onToggleSelect}
+                  className="data-[state=checked]:bg-primary"
+                />
+              )}
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
                 {ad.page_name?.charAt(0) || "A"}
               </div>
@@ -167,16 +230,19 @@ function AdCard({ ad }: { ad: Ad }) {
           </div>
 
           {/* Stats */}
-          <div className="space-y-1">
-            <div className="flex items-baseline gap-2">
-              <span className="text-lg font-semibold text-primary">
-                {ad.longevity_days || 0} dias
-              </span>
-              {ad.countries && ad.countries.length > 0 && (
-                <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-secondary rounded">
-                  {ad.countries[0]}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-semibold text-primary">
+                  {ad.longevity_days || 0} dias
                 </span>
-              )}
+                {ad.countries && ad.countries.length > 0 && (
+                  <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-secondary rounded">
+                    {ad.countries[0]}
+                  </span>
+                )}
+              </div>
+              <WinningScoreBadge score={winningScore} size="sm" />
             </div>
             {ad.headline && (
               <p className="text-sm font-medium line-clamp-1">{ad.headline}</p>
