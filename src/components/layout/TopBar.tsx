@@ -64,7 +64,7 @@ export function TopBar() {
               </SheetTitle>
             </SheetHeader>
             <nav className="flex flex-col p-2">
-              {allNavigation.map((item) => {
+              {allNavigation.map((item, index) => {
                 const isActive = location.pathname === item.href;
                 return (
                   <Link
@@ -72,11 +72,13 @@ export function TopBar() {
                     to={item.href}
                     onClick={() => setMobileMenuOpen(false)}
                     className={cn(
-                      "px-4 py-3 text-sm font-medium rounded-md transition-colors",
+                      "px-4 py-3 text-sm font-medium rounded-md transition-all duration-200",
+                      "animate-slide-in-left",
                       isActive
                         ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-x-1"
                     )}
+                    style={{ animationDelay: `${index * 30}ms`, animationFillMode: "both" }}
                   >
                     {item.name}
                   </Link>
