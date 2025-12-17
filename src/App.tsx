@@ -16,6 +16,7 @@ import DivergencePage from "./pages/DivergencePage";
 import TrendsPage from "./pages/TrendsPage";
 import JobHistoryPage from "./pages/JobHistoryPage";
 import AdImportPage from "./pages/AdImportPage";
+import IntelligencePage from "./pages/IntelligencePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -77,6 +78,11 @@ const App = () => (
             <Route path="/import" element={
               <ProtectedRoute>
                 <AdImportPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/intelligence" element={
+              <ProtectedRoute>
+                <IntelligencePage />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />
