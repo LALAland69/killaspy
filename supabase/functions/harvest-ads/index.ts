@@ -56,32 +56,46 @@ async function fetchAdsPage(
     return { ads: [] };
   }
 
+  // Build URL with proper encoding for array parameter
+  const baseUrl = "https://graph.facebook.com/v21.0/ads_archive";
+  const countriesArray = JSON.stringify([country]);
+  
   const params = new URLSearchParams({
     access_token: FACEBOOK_ACCESS_TOKEN,
     search_terms: keyword,
-    ad_reached_countries: `["${country}"]`,
     ad_active_status: adActiveStatus,
     ad_delivery_date_min: dateMin,
     fields: "id,ad_creation_time,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_descriptions,ad_creative_link_titles,ad_snapshot_url,languages,publisher_platforms,estimated_audience_size,impressions,spend,bylines",
     limit: limit.toString(),
   });
 
+  // Add countries as properly encoded array
+  const url = `${baseUrl}?${params}&ad_reached_countries=${encodeURIComponent(countriesArray)}`;
+
   if (afterCursor) {
     params.append("after", afterCursor);
   }
 
+  console.log(`Calling Facebook API: keyword="${keyword}", country="${country}", status="${adActiveStatus}"`);
+
   try {
-    const response = await fetch(
-      `https://graph.facebook.com/v21.0/ads_archive?${params}`
-    );
+    const response = await fetch(url);
+    const responseText = await response.text();
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Facebook API error for keyword "${keyword}":`, errorText);
+      console.error(`Facebook API error for keyword "${keyword}":`, responseText);
+      // Try to parse error for more details
+      try {
+        const errorJson = JSON.parse(responseText);
+        if (errorJson.error) {
+          console.error(`Error code: ${errorJson.error.code}, type: ${errorJson.error.type}, message: ${errorJson.error.message}`);
+        }
+      } catch {}
       return { ads: [] };
     }
 
-    const result = await response.json();
+    const result = JSON.parse(responseText);
+    console.log(`Got ${result.data?.length || 0} ads for keyword "${keyword}" in ${country}`);
     return {
       ads: result.data || [],
       nextCursor: result.paging?.cursors?.after,
