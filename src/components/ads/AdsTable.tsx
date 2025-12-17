@@ -1,84 +1,37 @@
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Play, Image as ImageIcon } from "lucide-react";
+import { ExternalLink, Play, Image as ImageIcon, Loader2 } from "lucide-react";
+import { useAds, type Ad } from "@/hooks/useAds";
+import { format } from "date-fns";
 
-interface Ad {
-  id: string;
-  pageName: string;
-  creative: "video" | "image";
-  primaryText: string;
-  cta: string;
-  country: string;
-  startDate: string;
-  domain: string;
-  score: number;
-  status: "active" | "inactive";
+interface AdsTableProps {
+  limit?: number;
+  ads?: Ad[];
+  isLoading?: boolean;
 }
 
-const mockAds: Ad[] = [
-  {
-    id: "1",
-    pageName: "FitLife Pro",
-    creative: "video",
-    primaryText: "Transform your body in just 30 days with our proven method...",
-    cta: "Shop Now",
-    country: "US",
-    startDate: "2024-01-15",
-    domain: "fitlifepro.com",
-    score: 78,
-    status: "active",
-  },
-  {
-    id: "2",
-    pageName: "Crypto Wealth Academy",
-    creative: "image",
-    primaryText: "Learn how ordinary people are making $10k/month trading crypto...",
-    cta: "Learn More",
-    country: "UK",
-    startDate: "2024-01-12",
-    domain: "cryptowealthacademy.io",
-    score: 92,
-    status: "active",
-  },
-  {
-    id: "3",
-    pageName: "Natural Health Store",
-    creative: "video",
-    primaryText: "Discover the ancient secret to natural weight loss...",
-    cta: "Shop Now",
-    country: "CA",
-    startDate: "2024-01-10",
-    domain: "naturalhealthstore.net",
-    score: 45,
-    status: "active",
-  },
-  {
-    id: "4",
-    pageName: "Tech Gadgets HQ",
-    creative: "image",
-    primaryText: "Revolutionary smart device that everyone is talking about...",
-    cta: "Order Now",
-    country: "AU",
-    startDate: "2024-01-08",
-    domain: "techgadgetshq.com",
-    score: 23,
-    status: "inactive",
-  },
-  {
-    id: "5",
-    pageName: "Finance Freedom Co",
-    creative: "video",
-    primaryText: "This simple trick helped me pay off $50k in debt...",
-    cta: "Sign Up",
-    country: "US",
-    startDate: "2024-01-05",
-    domain: "financefreedom.co",
-    score: 67,
-    status: "active",
-  },
-];
+export function AdsTable({ limit, ads: providedAds, isLoading: providedLoading }: AdsTableProps) {
+  const { data: fetchedAds, isLoading: fetchLoading } = useAds(limit);
+  
+  const ads = providedAds || fetchedAds;
+  const isLoading = providedLoading !== undefined ? providedLoading : fetchLoading;
 
-export function AdsTable() {
+  if (isLoading) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-lg border border-border/50 bg-card">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!ads || ads.length === 0) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-lg border border-border/50 bg-card">
+        <p className="text-sm text-muted-foreground">No ads found. Seed demo data to get started.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border border-border/50 bg-card">
       <div className="overflow-x-auto">
@@ -88,18 +41,18 @@ export function AdsTable() {
               <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Creative</th>
               <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Page / Copy</th>
               <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">CTA</th>
-              <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Country</th>
+              <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Region</th>
               <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Start Date</th>
               <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Domain</th>
               <th className="px-4 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Score</th>
             </tr>
           </thead>
           <tbody>
-            {mockAds.map((ad) => (
+            {ads.map((ad) => (
               <tr key={ad.id} className="data-table-row">
                 <td className="px-4 py-4">
                   <div className="flex h-12 w-12 items-center justify-center rounded-md bg-secondary">
-                    {ad.creative === "video" ? (
+                    {ad.media_type === "video" ? (
                       <Play className="h-5 w-5 text-muted-foreground" />
                     ) : (
                       <ImageIcon className="h-5 w-5 text-muted-foreground" />
@@ -108,34 +61,40 @@ export function AdsTable() {
                 </td>
                 <td className="px-4 py-4">
                   <div className="max-w-xs space-y-1">
-                    <p className="text-sm font-medium text-foreground">{ad.pageName}</p>
-                    <p className="truncate text-xs text-muted-foreground">{ad.primaryText}</p>
+                    <p className="text-sm font-medium text-foreground">{ad.page_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{ad.primary_text}</p>
                   </div>
                 </td>
                 <td className="px-4 py-4">
                   <Badge variant="secondary" className="text-xs font-normal">
-                    {ad.cta}
+                    {ad.cta || "N/A"}
                   </Badge>
                 </td>
                 <td className="px-4 py-4">
-                  <span className="text-sm text-muted-foreground">{ad.country}</span>
+                  <span className="text-sm text-muted-foreground">{ad.region || ad.countries?.join(", ") || "N/A"}</span>
                 </td>
                 <td className="px-4 py-4">
-                  <span className="text-sm tabular-nums text-muted-foreground">{ad.startDate}</span>
+                  <span className="text-sm tabular-nums text-muted-foreground">
+                    {ad.start_date ? format(new Date(ad.start_date), "yyyy-MM-dd") : "N/A"}
+                  </span>
                 </td>
                 <td className="px-4 py-4">
-                  <a 
-                    href={`https://${ad.domain}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {ad.domain}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                  {ad.domains?.domain ? (
+                    <a 
+                      href={`https://${ad.domains.domain}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      {ad.domains.domain}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">N/A</span>
+                  )}
                 </td>
                 <td className="px-4 py-4">
-                  <ScoreBadge score={ad.score} />
+                  <ScoreBadge score={ad.suspicion_score || 0} />
                 </td>
               </tr>
             ))}
