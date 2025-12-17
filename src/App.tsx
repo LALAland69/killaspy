@@ -8,6 +8,10 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdsPage from "./pages/AdsPage";
+import AdvertisersPage from "./pages/AdvertisersPage";
+import AdvertiserProfilePage from "./pages/AdvertiserProfilePage";
+import DomainsPage from "./pages/DomainsPage";
+import DomainProfilePage from "./pages/DomainProfilePage";
 import DivergencePage from "./pages/DivergencePage";
 import TrendsPage from "./pages/TrendsPage";
 import NotFound from "./pages/NotFound";
@@ -31,6 +35,26 @@ const App = () => (
             <Route path="/ads" element={
               <ProtectedRoute>
                 <AdsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/advertisers" element={
+              <ProtectedRoute>
+                <AdvertisersPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/advertisers/:id" element={
+              <ProtectedRoute>
+                <AdvertiserProfilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/domains" element={
+              <ProtectedRoute>
+                <DomainsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/domains/:id" element={
+              <ProtectedRoute>
+                <DomainProfilePage />
               </ProtectedRoute>
             } />
             <Route path="/divergence" element={
