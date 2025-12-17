@@ -23,6 +23,9 @@ import AlertsPage from "./pages/AlertsPage";
 import SecurityAuditsPage from "./pages/SecurityAuditsPage";
 import AuditDetailPage from "./pages/AuditDetailPage";
 import NotFound from "./pages/NotFound";
+import SalesPage from "./pages/SalesPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +37,10 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Public pages */}
+            <Route path="/pagina-de-vendas" element={<SalesPage />} />
+            <Route path="/privacidade" element={<PrivacyPage />} />
+            <Route path="/termos" element={<TermsPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/" element={
               <ProtectedRoute>
