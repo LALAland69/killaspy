@@ -15,6 +15,7 @@ import DomainProfilePage from "./pages/DomainProfilePage";
 import DivergencePage from "./pages/DivergencePage";
 import TrendsPage from "./pages/TrendsPage";
 import JobHistoryPage from "./pages/JobHistoryPage";
+import AdImportPage from "./pages/AdImportPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -71,6 +72,11 @@ const App = () => (
             <Route path="/jobs" element={
               <ProtectedRoute>
                 <JobHistoryPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/import" element={
+              <ProtectedRoute>
+                <AdImportPage />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />
