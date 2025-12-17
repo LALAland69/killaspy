@@ -14,84 +14,159 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_history: {
+        Row: {
+          ad_id: string
+          created_at: string
+          creative_hash: string | null
+          engagement_score: number | null
+          id: string
+          landing_page_hash: string | null
+          snapshot_date: string
+          status: string | null
+          suspicion_score: number | null
+          tenant_id: string
+        }
+        Insert: {
+          ad_id: string
+          created_at?: string
+          creative_hash?: string | null
+          engagement_score?: number | null
+          id?: string
+          landing_page_hash?: string | null
+          snapshot_date?: string
+          status?: string | null
+          suspicion_score?: number | null
+          tenant_id: string
+        }
+        Update: {
+          ad_id?: string
+          created_at?: string
+          creative_hash?: string | null
+          engagement_score?: number | null
+          id?: string
+          landing_page_hash?: string | null
+          snapshot_date?: string
+          status?: string | null
+          suspicion_score?: number | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_history_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads: {
         Row: {
           ad_library_id: string | null
           advertiser_id: string | null
+          cloaker_token: string | null
           copy_sentiment: string | null
           countries: string[] | null
           created_at: string
           cta: string | null
+          detected_black_url: string | null
           domain_id: string | null
           end_date: string | null
+          engagement_score: number | null
           final_lp_url: string | null
           headline: string | null
           id: string
           is_cloaked_flag: boolean | null
           language: string | null
+          last_snapshot_at: string | null
+          longevity_days: number | null
           media_type: string | null
           media_url: string | null
           offer_category: string | null
           page_name: string | null
           primary_text: string | null
+          region: string | null
           start_date: string | null
           status: string | null
           suspicion_score: number | null
           tenant_id: string
           updated_at: string
           visual_hook_score: number | null
+          white_url: string | null
         }
         Insert: {
           ad_library_id?: string | null
           advertiser_id?: string | null
+          cloaker_token?: string | null
           copy_sentiment?: string | null
           countries?: string[] | null
           created_at?: string
           cta?: string | null
+          detected_black_url?: string | null
           domain_id?: string | null
           end_date?: string | null
+          engagement_score?: number | null
           final_lp_url?: string | null
           headline?: string | null
           id?: string
           is_cloaked_flag?: boolean | null
           language?: string | null
+          last_snapshot_at?: string | null
+          longevity_days?: number | null
           media_type?: string | null
           media_url?: string | null
           offer_category?: string | null
           page_name?: string | null
           primary_text?: string | null
+          region?: string | null
           start_date?: string | null
           status?: string | null
           suspicion_score?: number | null
           tenant_id: string
           updated_at?: string
           visual_hook_score?: number | null
+          white_url?: string | null
         }
         Update: {
           ad_library_id?: string | null
           advertiser_id?: string | null
+          cloaker_token?: string | null
           copy_sentiment?: string | null
           countries?: string[] | null
           created_at?: string
           cta?: string | null
+          detected_black_url?: string | null
           domain_id?: string | null
           end_date?: string | null
+          engagement_score?: number | null
           final_lp_url?: string | null
           headline?: string | null
           id?: string
           is_cloaked_flag?: boolean | null
           language?: string | null
+          last_snapshot_at?: string | null
+          longevity_days?: number | null
           media_type?: string | null
           media_url?: string | null
           offer_category?: string | null
           page_name?: string | null
           primary_text?: string | null
+          region?: string | null
           start_date?: string | null
           status?: string | null
           suspicion_score?: number | null
           tenant_id?: string
           updated_at?: string
           visual_hook_score?: number | null
+          white_url?: string | null
         }
         Relationships: [
           {
@@ -240,6 +315,47 @@ export type Database = {
           },
         ]
       }
+      daily_reports: {
+        Row: {
+          created_at: string
+          id: string
+          new_cloakers_detected: number | null
+          report_date: string
+          tenant_id: string
+          top_aggressive_ads: Json | null
+          top_longevity_ads: Json | null
+          total_ads_analyzed: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          new_cloakers_detected?: number | null
+          report_date?: string
+          tenant_id: string
+          top_aggressive_ads?: Json | null
+          top_longevity_ads?: Json | null
+          total_ads_analyzed?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          new_cloakers_detected?: number | null
+          report_date?: string
+          tenant_id?: string
+          top_aggressive_ads?: Json | null
+          top_longevity_ads?: Json | null
+          total_ads_analyzed?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_reports_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       domain_pages: {
         Row: {
           created_at: string
@@ -360,10 +476,13 @@ export type Database = {
           captured_at: string
           content_preview: string | null
           created_at: string
+          detected_token: string | null
           domain_id: string | null
+          final_redirect_url: string | null
           html_hash: string | null
           id: string
           ip_geo: string | null
+          is_black_page: boolean | null
           redirect_chain: string[] | null
           referer: string | null
           response_code: number | null
@@ -376,10 +495,13 @@ export type Database = {
           captured_at?: string
           content_preview?: string | null
           created_at?: string
+          detected_token?: string | null
           domain_id?: string | null
+          final_redirect_url?: string | null
           html_hash?: string | null
           id?: string
           ip_geo?: string | null
+          is_black_page?: boolean | null
           redirect_chain?: string[] | null
           referer?: string | null
           response_code?: number | null
@@ -392,10 +514,13 @@ export type Database = {
           captured_at?: string
           content_preview?: string | null
           created_at?: string
+          detected_token?: string | null
           domain_id?: string | null
+          final_redirect_url?: string | null
           html_hash?: string | null
           id?: string
           ip_geo?: string | null
+          is_black_page?: boolean | null
           redirect_chain?: string[] | null
           referer?: string | null
           response_code?: number | null
