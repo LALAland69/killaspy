@@ -14,16 +14,565 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ads: {
+        Row: {
+          ad_library_id: string | null
+          advertiser_id: string | null
+          copy_sentiment: string | null
+          countries: string[] | null
+          created_at: string
+          cta: string | null
+          domain_id: string | null
+          end_date: string | null
+          final_lp_url: string | null
+          headline: string | null
+          id: string
+          is_cloaked_flag: boolean | null
+          language: string | null
+          media_type: string | null
+          media_url: string | null
+          offer_category: string | null
+          page_name: string | null
+          primary_text: string | null
+          start_date: string | null
+          status: string | null
+          suspicion_score: number | null
+          tenant_id: string
+          updated_at: string
+          visual_hook_score: number | null
+        }
+        Insert: {
+          ad_library_id?: string | null
+          advertiser_id?: string | null
+          copy_sentiment?: string | null
+          countries?: string[] | null
+          created_at?: string
+          cta?: string | null
+          domain_id?: string | null
+          end_date?: string | null
+          final_lp_url?: string | null
+          headline?: string | null
+          id?: string
+          is_cloaked_flag?: boolean | null
+          language?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          offer_category?: string | null
+          page_name?: string | null
+          primary_text?: string | null
+          start_date?: string | null
+          status?: string | null
+          suspicion_score?: number | null
+          tenant_id: string
+          updated_at?: string
+          visual_hook_score?: number | null
+        }
+        Update: {
+          ad_library_id?: string | null
+          advertiser_id?: string | null
+          copy_sentiment?: string | null
+          countries?: string[] | null
+          created_at?: string
+          cta?: string | null
+          domain_id?: string | null
+          end_date?: string | null
+          final_lp_url?: string | null
+          headline?: string | null
+          id?: string
+          is_cloaked_flag?: boolean | null
+          language?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          offer_category?: string | null
+          page_name?: string | null
+          primary_text?: string | null
+          start_date?: string | null
+          status?: string | null
+          suspicion_score?: number | null
+          tenant_id?: string
+          updated_at?: string
+          visual_hook_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_advertiser_id_fkey"
+            columns: ["advertiser_id"]
+            isOneToOne: false
+            referencedRelation: "advertisers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "domains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      advertisers: {
+        Row: {
+          active_ads: number | null
+          avg_suspicion_score: number | null
+          countries: number | null
+          created_at: string
+          domains_count: number | null
+          id: string
+          name: string
+          page_id: string | null
+          tenant_id: string
+          total_ads: number | null
+          updated_at: string
+        }
+        Insert: {
+          active_ads?: number | null
+          avg_suspicion_score?: number | null
+          countries?: number | null
+          created_at?: string
+          domains_count?: number | null
+          id?: string
+          name: string
+          page_id?: string | null
+          tenant_id: string
+          total_ads?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active_ads?: number | null
+          avg_suspicion_score?: number | null
+          countries?: number | null
+          created_at?: string
+          domains_count?: number | null
+          id?: string
+          name?: string
+          page_id?: string | null
+          tenant_id?: string
+          total_ads?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advertisers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analysis_scores: {
+        Row: {
+          ad_domain_disparity_score: number | null
+          ad_id: string | null
+          ad_lp_mismatch_score: number | null
+          behavioral_divergence_score: number | null
+          created_at: string
+          creative_rotation_score: number | null
+          domain_id: string | null
+          domain_mapping_score: number | null
+          id: string
+          redirect_chain_score: number | null
+          risk_level: string | null
+          tenant_id: string
+          total_score: number | null
+          updated_at: string
+        }
+        Insert: {
+          ad_domain_disparity_score?: number | null
+          ad_id?: string | null
+          ad_lp_mismatch_score?: number | null
+          behavioral_divergence_score?: number | null
+          created_at?: string
+          creative_rotation_score?: number | null
+          domain_id?: string | null
+          domain_mapping_score?: number | null
+          id?: string
+          redirect_chain_score?: number | null
+          risk_level?: string | null
+          tenant_id: string
+          total_score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ad_domain_disparity_score?: number | null
+          ad_id?: string | null
+          ad_lp_mismatch_score?: number | null
+          behavioral_divergence_score?: number | null
+          created_at?: string
+          creative_rotation_score?: number | null
+          domain_id?: string | null
+          domain_mapping_score?: number | null
+          id?: string
+          redirect_chain_score?: number | null
+          risk_level?: string | null
+          tenant_id?: string
+          total_score?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analysis_scores_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analysis_scores_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "domains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analysis_scores_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      domain_pages: {
+        Row: {
+          created_at: string
+          domain_id: string
+          has_payment_button: boolean | null
+          has_testimonials: boolean | null
+          id: string
+          internal_links_to: string[] | null
+          page_classification: string | null
+          tech_stack_detected: string[] | null
+          tenant_id: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          domain_id: string
+          has_payment_button?: boolean | null
+          has_testimonials?: boolean | null
+          id?: string
+          internal_links_to?: string[] | null
+          page_classification?: string | null
+          tech_stack_detected?: string[] | null
+          tenant_id: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          domain_id?: string
+          has_payment_button?: boolean | null
+          has_testimonials?: boolean | null
+          id?: string
+          internal_links_to?: string[] | null
+          page_classification?: string | null
+          tech_stack_detected?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_pages_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "domains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "domain_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      domains: {
+        Row: {
+          advertiser_id: string | null
+          compliance_pages: number | null
+          created_at: string
+          domain: string
+          id: string
+          page_count: number | null
+          sales_pages: number | null
+          suspicion_score: number | null
+          tech_stack: string[] | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          advertiser_id?: string | null
+          compliance_pages?: number | null
+          created_at?: string
+          domain: string
+          id?: string
+          page_count?: number | null
+          sales_pages?: number | null
+          suspicion_score?: number | null
+          tech_stack?: string[] | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          advertiser_id?: string | null
+          compliance_pages?: number | null
+          created_at?: string
+          domain?: string
+          id?: string
+          page_count?: number | null
+          sales_pages?: number | null
+          suspicion_score?: number | null
+          tech_stack?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domains_advertiser_id_fkey"
+            columns: ["advertiser_id"]
+            isOneToOne: false
+            referencedRelation: "advertisers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "domains_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      landing_page_snapshots: {
+        Row: {
+          ad_id: string
+          captured_at: string
+          content_preview: string | null
+          created_at: string
+          domain_id: string | null
+          html_hash: string | null
+          id: string
+          ip_geo: string | null
+          redirect_chain: string[] | null
+          referer: string | null
+          response_code: number | null
+          snapshot_condition: string
+          tenant_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          ad_id: string
+          captured_at?: string
+          content_preview?: string | null
+          created_at?: string
+          domain_id?: string | null
+          html_hash?: string | null
+          id?: string
+          ip_geo?: string | null
+          redirect_chain?: string[] | null
+          referer?: string | null
+          response_code?: number | null
+          snapshot_condition: string
+          tenant_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          ad_id?: string
+          captured_at?: string
+          content_preview?: string | null
+          created_at?: string
+          domain_id?: string | null
+          html_hash?: string | null
+          id?: string
+          ip_geo?: string | null
+          redirect_chain?: string[] | null
+          referer?: string | null
+          response_code?: number | null
+          snapshot_condition?: string
+          tenant_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_snapshots_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landing_page_snapshots_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "domains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landing_page_snapshots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      niche_trends: {
+        Row: {
+          created_at: string
+          id: string
+          last_updated: string
+          new_ads_7d: number | null
+          niche_name: string
+          saturation_level: string | null
+          tenant_id: string
+          top_advertisers: string[] | null
+          velocity_change: string | null
+          velocity_score: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          new_ads_7d?: number | null
+          niche_name: string
+          saturation_level?: string | null
+          tenant_id: string
+          top_advertisers?: string[] | null
+          velocity_change?: string | null
+          velocity_score?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          new_ads_7d?: number | null
+          niche_name?: string
+          saturation_level?: string | null
+          tenant_id?: string
+          top_advertisers?: string[] | null
+          velocity_change?: string | null
+          velocity_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "niche_trends_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          tenant_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          tenant_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          tenant_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +699,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
