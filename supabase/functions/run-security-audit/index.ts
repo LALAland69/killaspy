@@ -13,6 +13,140 @@ interface AuditConfig {
   checkSSL?: boolean;
   checkRedirects?: boolean;
   checkReputation?: boolean;
+  useFirecrawl?: boolean;
+}
+
+// Firecrawl integration for advanced scraping
+async function runFirecrawlScrape(url: string): Promise<{ findings: any[]; data: any }> {
+  const findings: any[] = [];
+  const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
+  
+  if (!apiKey) {
+    console.log('Firecrawl API key not configured, skipping advanced scrape');
+    return { findings: [], data: { skipped: true, reason: 'API key not configured' } };
+  }
+
+  try {
+    console.log('Running Firecrawl scrape for:', url);
+    
+    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url,
+        formats: ['markdown', 'html', 'links', 'screenshot'],
+        onlyMainContent: false,
+        waitFor: 3000,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Firecrawl API error:', error);
+      findings.push({
+        type: 'firecrawl_error',
+        severity: 'low',
+        title: 'Erro no Scraping Avançado',
+        description: `Não foi possível realizar o scraping avançado: ${response.status}`,
+        evidence: { statusCode: response.status },
+      });
+      return { findings, data: { error: true } };
+    }
+
+    const result = await response.json();
+    const scrapedData = result.data || result;
+    
+    // Analyze scraped content for security issues
+    const html = scrapedData.html || '';
+    const markdown = scrapedData.markdown || '';
+    const links = scrapedData.links || [];
+    
+    // Check for suspicious patterns in HTML
+    const suspiciousPatterns = [
+      { pattern: /cloaker|cloaking/i, name: 'Cloaking Script' },
+      { pattern: /tracker\.php|go\.php|redirect\.php/i, name: 'Redirect Tracker' },
+      { pattern: /display:\s*none.*position:\s*absolute/i, name: 'Hidden Content' },
+      { pattern: /eval\s*\(\s*atob/i, name: 'Encoded JavaScript' },
+      { pattern: /document\.referrer/i, name: 'Referrer Check' },
+      { pattern: /navigator\.userAgent/i, name: 'User-Agent Detection' },
+    ];
+    
+    const detectedPatterns: string[] = [];
+    for (const { pattern, name } of suspiciousPatterns) {
+      if (pattern.test(html)) {
+        detectedPatterns.push(name);
+      }
+    }
+    
+    if (detectedPatterns.length > 0) {
+      findings.push({
+        type: 'suspicious_code_patterns',
+        severity: 'high',
+        title: 'Padrões de Código Suspeitos Detectados',
+        description: `Foram encontrados ${detectedPatterns.length} padrões suspeitos no código fonte`,
+        evidence: { patterns: detectedPatterns },
+      });
+    }
+    
+    // Check for external redirects in links
+    const externalLinks = links.filter((link: string) => {
+      try {
+        const linkUrl = new URL(link, url);
+        const baseUrl = new URL(url);
+        return linkUrl.hostname !== baseUrl.hostname;
+      } catch {
+        return false;
+      }
+    });
+    
+    if (externalLinks.length > 10) {
+      findings.push({
+        type: 'excessive_external_links',
+        severity: 'medium',
+        title: 'Muitos Links Externos',
+        description: `A página contém ${externalLinks.length} links para domínios externos`,
+        evidence: { count: externalLinks.length, sample: externalLinks.slice(0, 5) },
+      });
+    }
+    
+    // Check content length for potential cloaking
+    if (html.length < 500 && links.length > 0) {
+      findings.push({
+        type: 'minimal_content',
+        severity: 'medium',
+        title: 'Conteúdo Mínimo Detectado',
+        description: 'A página tem muito pouco conteúdo HTML, possível página de redirecionamento',
+        evidence: { htmlLength: html.length, linksCount: links.length },
+      });
+    }
+
+    return {
+      findings,
+      data: {
+        htmlLength: html.length,
+        markdownLength: markdown.length,
+        linksCount: links.length,
+        externalLinksCount: externalLinks.length,
+        screenshot: scrapedData.screenshot ? 'captured' : 'not_available',
+        metadata: scrapedData.metadata,
+      },
+    };
+  } catch (error) {
+    console.error('Firecrawl scrape error:', error);
+    return {
+      findings: [{
+        type: 'firecrawl_error',
+        severity: 'low',
+        title: 'Erro no Scraping Avançado',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        evidence: {},
+      }],
+      data: { error: true },
+    };
+  }
 }
 
 // Simulated module execution functions
@@ -315,18 +449,19 @@ serve(async (req) => {
     const allFindings: any[] = [];
     const moduleResults: any[] = [];
 
-    // Define modules to run
+    // Define modules to run (including Firecrawl)
     const modulesToRun = [
-      { type: "header_consistency_checker", fn: () => runHeaderConsistencyCheck(targetUrl!) },
-      { type: "redirect_path_mapper", fn: () => runRedirectAnalysis(targetUrl!) },
-      { type: "ssl_certificate_auditor", fn: () => runSSLAnalysis(targetUrl!) },
-      { type: "domain_reputation_checker", fn: () => runDomainReputationCheck(targetDomain!) },
-      { type: "tech_stack_identifier", fn: () => runTechStackAnalysis(targetUrl!) },
+      { type: "content_render_auditor", fn: () => runFirecrawlScrape(targetUrl!), requiresUrl: true },
+      { type: "header_consistency_checker", fn: () => runHeaderConsistencyCheck(targetUrl!), requiresUrl: true },
+      { type: "redirect_path_mapper", fn: () => runRedirectAnalysis(targetUrl!), requiresUrl: true },
+      { type: "ssl_certificate_auditor", fn: () => runSSLAnalysis(targetUrl!), requiresUrl: true },
+      { type: "domain_reputation_checker", fn: () => runDomainReputationCheck(targetDomain!), requiresUrl: false },
+      { type: "tech_stack_identifier", fn: () => runTechStackAnalysis(targetUrl!), requiresUrl: true },
     ];
 
     // Execute modules
     for (const module of modulesToRun) {
-      if (!targetUrl && module.type !== "domain_reputation_checker") continue;
+      if (!targetUrl && module.requiresUrl) continue;
       if (!targetDomain && module.type === "domain_reputation_checker") continue;
 
       const startTime = Date.now();

@@ -1039,9 +1039,14 @@ export type Database = {
           config: Json | null
           created_at: string
           critical_findings: number | null
+          cron_job_name: string | null
           description: string | null
           id: string
+          is_recurring: boolean | null
+          last_run_at: string | null
           name: string
+          next_run_at: string | null
+          recurrence_schedule: string | null
           resource_points: number | null
           started_at: string | null
           status: Database["public"]["Enums"]["audit_status"]
@@ -1057,9 +1062,14 @@ export type Database = {
           config?: Json | null
           created_at?: string
           critical_findings?: number | null
+          cron_job_name?: string | null
           description?: string | null
           id?: string
+          is_recurring?: boolean | null
+          last_run_at?: string | null
           name: string
+          next_run_at?: string | null
+          recurrence_schedule?: string | null
           resource_points?: number | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["audit_status"]
@@ -1075,9 +1085,14 @@ export type Database = {
           config?: Json | null
           created_at?: string
           critical_findings?: number | null
+          cron_job_name?: string | null
           description?: string | null
           id?: string
+          is_recurring?: boolean | null
+          last_run_at?: string | null
           name?: string
+          next_run_at?: string | null
+          recurrence_schedule?: string | null
           resource_points?: number | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["audit_status"]

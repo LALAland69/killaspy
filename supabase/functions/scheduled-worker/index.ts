@@ -126,7 +126,93 @@ const JOB_NAMES: Record<string, Record<string, string>> = {
   status_check: {
     daily: "Daily Status Check",
   },
+  scheduled_audits: {
+    daily: "Scheduled Security Audits",
+  },
 };
+
+// Run scheduled security audits
+async function processScheduledAudits(supabase: any): Promise<{ processed: number; errors: number }> {
+  const now = new Date().toISOString();
+  
+  // Find audits that need to run
+  const { data: audits, error } = await supabase
+    .from("security_audits")
+    .select("*")
+    .eq("is_recurring", true)
+    .lte("next_run_at", now)
+    .in("status", ["pending", "completed"]);
+  
+  if (error) {
+    console.error("Failed to fetch scheduled audits:", error);
+    return { processed: 0, errors: 1 };
+  }
+  
+  let processed = 0;
+  let errors = 0;
+  
+  for (const audit of audits || []) {
+    console.log(`Running scheduled audit: ${audit.name} (${audit.id})`);
+    
+    try {
+      // Reset audit status and run
+      await supabase
+        .from("security_audits")
+        .update({
+          status: "pending",
+          total_findings: 0,
+          critical_findings: 0,
+          started_at: null,
+          completed_at: null,
+        })
+        .eq("id", audit.id);
+      
+      // Invoke the security audit function
+      const { error: invokeError } = await supabase.functions.invoke("run-security-audit", {
+        body: { auditId: audit.id },
+      });
+      
+      if (invokeError) {
+        throw invokeError;
+      }
+      
+      // Calculate next run time
+      let nextRunAt: Date | null = null;
+      if (audit.recurrence_schedule === "daily") {
+        nextRunAt = new Date();
+        nextRunAt.setDate(nextRunAt.getDate() + 1);
+        nextRunAt.setHours(2, 0, 0, 0);
+      } else if (audit.recurrence_schedule === "weekly") {
+        nextRunAt = new Date();
+        nextRunAt.setDate(nextRunAt.getDate() + 7);
+        nextRunAt.setHours(2, 0, 0, 0);
+      } else if (audit.recurrence_schedule === "monthly") {
+        nextRunAt = new Date();
+        nextRunAt.setMonth(nextRunAt.getMonth() + 1);
+        nextRunAt.setHours(2, 0, 0, 0);
+      }
+      
+      // Update next run time
+      await supabase
+        .from("security_audits")
+        .update({
+          last_run_at: now,
+          next_run_at: nextRunAt?.toISOString(),
+        })
+        .eq("id", audit.id);
+      
+      processed++;
+    } catch (e) {
+      console.error(`Failed to run audit ${audit.id}:`, e);
+      errors++;
+    }
+    
+    // Small delay between audits
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  
+  return { processed, errors };
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -261,6 +347,11 @@ serve(async (req) => {
         
         await new Promise((r) => setTimeout(r, 500));
       }
+    } else if (type === "scheduled_audits") {
+      // Process scheduled security audits
+      const result = await processScheduledAudits(supabase);
+      processedCount = result.processed;
+      errorsCount = result.errors;
     }
     
     const durationMs = Date.now() - startTime;

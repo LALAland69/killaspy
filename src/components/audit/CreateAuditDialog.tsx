@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useCreateAudit, moduleTypeLabels, moduleCategories, AuditModuleType } from "@/hooks/useSecurityAudits";
-import { Loader2, Shield, Globe, FileText } from "lucide-react";
+import { Loader2, Shield, Globe, FileText, CalendarClock } from "lucide-react";
 
 interface CreateAuditDialogProps {
   open: boolean;
@@ -17,6 +19,8 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceSchedule, setRecurrenceSchedule] = useState<string>("weekly");
   const [selectedModules, setSelectedModules] = useState<AuditModuleType[]>([
     "header_consistency_checker",
     "redirect_path_mapper",
@@ -30,17 +34,39 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Calculate next run time based on schedule
+    let nextRunAt: string | undefined;
+    if (isRecurring) {
+      const now = new Date();
+      if (recurrenceSchedule === "daily") {
+        now.setDate(now.getDate() + 1);
+        now.setHours(2, 0, 0, 0); // 2 AM
+      } else if (recurrenceSchedule === "weekly") {
+        now.setDate(now.getDate() + 7);
+        now.setHours(2, 0, 0, 0);
+      } else if (recurrenceSchedule === "monthly") {
+        now.setMonth(now.getMonth() + 1);
+        now.setHours(2, 0, 0, 0);
+      }
+      nextRunAt = now.toISOString();
+    }
+    
     await createAudit.mutateAsync({
       name,
       description: description || undefined,
       target_url: targetUrl || undefined,
       target_domain: targetUrl ? new URL(targetUrl).hostname : undefined,
       config: { modules: selectedModules },
+      is_recurring: isRecurring,
+      recurrence_schedule: isRecurring ? recurrenceSchedule : undefined,
+      next_run_at: nextRunAt,
     });
 
     setName("");
     setDescription("");
     setTargetUrl("");
+    setIsRecurring(false);
+    setRecurrenceSchedule("weekly");
     onOpenChange(false);
   };
 
@@ -113,6 +139,38 @@ export function CreateAuditDialog({ open, onOpenChange }: CreateAuditDialogProps
                 onChange={(e) => setTargetUrl(e.target.value)}
                 placeholder="https://exemplo.com/landing-page"
               />
+            </div>
+
+            {/* Scheduling Options */}
+            <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4" />
+                    Auditoria Recorrente
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Executar automaticamente de forma periódica
+                  </p>
+                </div>
+                <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+              </div>
+
+              {isRecurring && (
+                <div className="space-y-2">
+                  <Label>Frequência</Label>
+                  <Select value={recurrenceSchedule} onValueChange={setRecurrenceSchedule}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Diário (2:00 AM)</SelectItem>
+                      <SelectItem value="weekly">Semanal</SelectItem>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 

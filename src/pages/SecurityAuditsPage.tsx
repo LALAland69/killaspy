@@ -224,6 +224,13 @@ function AuditCard({ audit, onRun, onDelete, isRunning }: AuditCardProps) {
                 <Clock className="h-4 w-4" />
                 {formatDistanceToNow(new Date(audit.created_at), { addSuffix: true, locale: ptBR })}
               </span>
+              {audit.is_recurring && (
+                <Badge variant="secondary" className="gap-1">
+                  <Clock className="h-3 w-3" />
+                  {audit.recurrence_schedule === "daily" ? "Diário" : 
+                   audit.recurrence_schedule === "weekly" ? "Semanal" : "Mensal"}
+                </Badge>
+              )}
             </div>
 
             {audit.status === "completed" && (

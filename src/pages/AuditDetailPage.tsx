@@ -18,11 +18,13 @@ import {
   Loader2,
   Activity,
   Database,
-  Zap
+  Zap,
+  Download
 } from "lucide-react";
 import { 
   useSecurityAudit, 
   useAuditModuleExecutions,
+  useAuditFindings,
   useRunAudit,
   moduleTypeLabels,
   AuditStatus,
@@ -33,6 +35,8 @@ import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { generateAuditPDF } from "@/lib/generateAuditPDF";
+import { useToast } from "@/hooks/use-toast";
 
 const statusConfig: Record<AuditStatus, { label: string; icon: React.ElementType; className: string }> = {
   pending: { label: "Pendente", icon: Clock, className: "bg-muted text-muted-foreground" },
@@ -46,7 +50,26 @@ export default function AuditDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: audit, isLoading: auditLoading } = useSecurityAudit(id!);
   const { data: executions = [] } = useAuditModuleExecutions(id!);
+  const { data: findings = [] } = useAuditFindings(id!);
   const runAudit = useRunAudit();
+  const { toast } = useToast();
+
+  const handleExportPDF = () => {
+    if (!audit) return;
+    try {
+      generateAuditPDF(audit, findings, executions);
+      toast({
+        title: "PDF gerado",
+        description: "O relatório foi baixado com sucesso",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao gerar PDF",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (auditLoading || !audit) {
     return (
@@ -95,6 +118,12 @@ export default function AuditDetailPage() {
                 <Play className="h-4 w-4 mr-2" />
               )}
               Executar Auditoria
+            </Button>
+          )}
+          {audit.status === "completed" && (
+            <Button variant="outline" onClick={handleExportPDF}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar PDF
             </Button>
           )}
         </div>

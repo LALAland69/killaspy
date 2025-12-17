@@ -39,6 +39,10 @@ export interface SecurityAudit {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  is_recurring: boolean;
+  recurrence_schedule: string | null;
+  next_run_at: string | null;
+  last_run_at: string | null;
 }
 
 export interface AuditModuleExecution {
@@ -231,6 +235,9 @@ export function useCreateAudit() {
       target_url?: string;
       target_domain?: string;
       config?: Record<string, unknown>;
+      is_recurring?: boolean;
+      recurrence_schedule?: string;
+      next_run_at?: string;
     }) => {
       // Get user's tenant_id
       const { data: { user } } = await supabase.auth.getUser();
@@ -253,6 +260,9 @@ export function useCreateAudit() {
           target_domain: audit.target_domain,
           config: audit.config || {},
           tenant_id: profile.tenant_id,
+          is_recurring: audit.is_recurring || false,
+          recurrence_schedule: audit.recurrence_schedule,
+          next_run_at: audit.next_run_at,
         } as any)
         .select()
         .single();
