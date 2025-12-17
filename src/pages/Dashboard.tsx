@@ -6,9 +6,10 @@ import { RiskDistributionChart } from "@/components/dashboard/RiskDistributionCh
 import { AdVelocityChart } from "@/components/dashboard/AdVelocityChart";
 import { NicheGrowthChart } from "@/components/dashboard/NicheGrowthChart";
 import { ScheduledWorkersPanel } from "@/components/dashboard/ScheduledWorkersPanel";
+import { WinningDistributionChart } from "@/components/dashboard/WinningDistributionChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Search, Users, Globe, AlertTriangle, Database, Loader2 } from "lucide-react";
+import { Search, Users, Globe, AlertTriangle, Database, Loader2, Trophy, TrendingUp } from "lucide-react";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useSeedData } from "@/hooks/useSeedData";
 
@@ -45,7 +46,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="Ads Tracked"
           value={isLoading ? "..." : stats?.totalAds.toLocaleString() || "0"}
@@ -68,7 +69,14 @@ export default function Dashboard() {
           icon={Globe}
         />
         <StatCard
-          title="High Risk Detected"
+          title="Winning Ads"
+          value={isLoading ? "..." : stats?.winningStats?.totalWinners.toLocaleString() || "0"}
+          change={`Avg score: ${stats?.winningStats?.avgWinningScore || 0}`}
+          changeType="positive"
+          icon={Trophy}
+        />
+        <StatCard
+          title="High Risk"
           value={isLoading ? "..." : stats?.highRiskAds.toLocaleString() || "0"}
           change="+12 today"
           changeType="negative"
@@ -77,14 +85,72 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Winning Stats Mini Cards */}
+      {stats?.winningStats && (
+        <div className="grid gap-3 grid-cols-4">
+          <Card className="border-border/50 bg-yellow-500/10 border-yellow-500/30">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-yellow-500">{stats.winningStats.champions}</p>
+                <p className="text-xs text-muted-foreground">Champions</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50 bg-green-500/10 border-green-500/30">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-green-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-green-500">{stats.winningStats.strong}</p>
+                <p className="text-xs text-muted-foreground">Strong</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50 bg-blue-500/10 border-blue-500/30">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-blue-500">{stats.winningStats.promising}</p>
+                <p className="text-xs text-muted-foreground">Promising</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                <Search className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.winningStats.testing}</p>
+                <p className="text-xs text-muted-foreground">Testing</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Charts Row */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-4">
         <Card className="border-border/50 bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground">Risk Distribution</CardTitle>
           </CardHeader>
           <CardContent>
             <RiskDistributionChart />
+          </CardContent>
+        </Card>
+        <Card className="border-border/50 bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-foreground">Winning Tiers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WinningDistributionChart />
           </CardContent>
         </Card>
         <Card className="border-border/50 bg-card">
