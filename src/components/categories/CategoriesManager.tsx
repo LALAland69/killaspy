@@ -36,6 +36,7 @@ import { ptBR } from "date-fns/locale";
 export function CategoriesManager() {
   const { data: categories, isLoading } = useAdCategories();
   const initializeCategories = useInitializeDefaultCategories();
+  const fullHarvest = useFullHarvest();
   const [editingCategory, setEditingCategory] = useState<AdCategory | null>(null);
 
   if (isLoading) {
@@ -66,8 +67,6 @@ export function CategoriesManager() {
       </Card>
     );
   }
-
-  const fullHarvest = useFullHarvest();
 
   return (
     <div className="space-y-4">
