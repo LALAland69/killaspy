@@ -63,7 +63,7 @@ interface FacebookAd {
 }
 
 async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]> {
-  const baseUrl = 'https://graph.facebook.com/v18.0/ads_archive';
+  const baseUrl = 'https://graph.facebook.com/v24.0/ads_archive';
   
   const queryParams = new URLSearchParams({
     access_token: FACEBOOK_ACCESS_TOKEN!,

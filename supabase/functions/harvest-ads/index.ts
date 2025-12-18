@@ -305,7 +305,7 @@ async function fetchAdsPage(
   }
 
   // Build URL with proper encoding for array parameter
-  const baseUrl = "https://graph.facebook.com/v21.0/ads_archive";
+  const baseUrl = "https://graph.facebook.com/v24.0/ads_archive";
   const countriesArray = JSON.stringify([country]);
   
   const params = new URLSearchParams({
