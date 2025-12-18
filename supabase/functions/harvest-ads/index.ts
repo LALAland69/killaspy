@@ -618,64 +618,33 @@ serve(async (req) => {
     const bodyText = await req.text();
     const body = bodyText ? JSON.parse(bodyText) : {};
     
-    // Authentication: Check either HMAC signature (cron), service role key (cron), or JWT (user)
-    const cronSignature = req.headers.get("x-cron-signature");
-    const cronTimestamp = req.headers.get("x-cron-timestamp");
+    // Authentication: Check cron secret (scheduled) or JWT (user)
+    const cronSecret = req.headers.get("x-cron-secret");
     const authHeader = req.headers.get("authorization");
+    const HARVEST_CRON_SECRET = Deno.env.get("HARVEST_CRON_SECRET");
     
     let isAuthenticated = false;
     let authSource = "none";
     let userId: string | undefined;
     
-    // For scheduled requests: Accept HMAC signature OR service role key
+    // For scheduled requests: Check HARVEST_CRON_SECRET
     if (body.scheduled === true) {
-      // Option 1: HMAC signature verification
-      if (cronSignature && cronTimestamp) {
-        isAuthenticated = await verifyCronSignature(cronSignature, cronTimestamp, bodyText);
-        if (isAuthenticated) authSource = "hmac";
-      }
-      
-      // Option 2: Service role key in Authorization header (for pg_cron)
-      if (!isAuthenticated && authHeader) {
-        const token = authHeader.replace("Bearer ", "");
-        // Check if it's the service role key or contains service role claims
-        if (token === SUPABASE_SERVICE_ROLE_KEY) {
-          isAuthenticated = true;
-          authSource = "service_role_key";
-        } else {
-          // Decode JWT and check role claim
-          try {
-            const [, payloadBase64] = token.split(".");
-            if (payloadBase64) {
-              const payload = JSON.parse(atob(payloadBase64));
-              if (payload.role === "service_role") {
-                isAuthenticated = true;
-                authSource = "service_role_jwt";
-              } else if (payload.role === "anon") {
-                // Anon key with special cron header - allow for backward compatibility
-                const cronSecret = req.headers.get("x-cron-secret");
-                if (cronSecret === SUPABASE_SERVICE_ROLE_KEY?.substring(0, 32)) {
-                  isAuthenticated = true;
-                  authSource = "anon_with_secret";
-                }
-              }
-            }
-          } catch {
-            // Invalid JWT format
-          }
-        }
+      if (cronSecret && HARVEST_CRON_SECRET && cronSecret === HARVEST_CRON_SECRET) {
+        isAuthenticated = true;
+        authSource = "cron_secret";
+        console.log("[harvest-ads] Cron secret validated successfully");
       }
       
       if (!isAuthenticated) {
-        console.warn(`Unauthorized scheduled request from ${req.headers.get("x-forwarded-for") || "unknown"}`);
+        console.warn(`Unauthorized scheduled request - invalid or missing cron secret`);
         logFacebookAPI({
           timestamp: new Date().toISOString(),
           function: "harvest-ads",
           action: "auth_failed",
-          message: "Scheduled request rejected - invalid credentials",
+          message: `Scheduled request rejected - hasSecret: ${!!cronSecret}, hasEnvSecret: ${!!HARVEST_CRON_SECRET}`,
         });
         return new Response(
-          JSON.stringify({ error: "Unauthorized - Invalid cron credentials" }),
+          JSON.stringify({ error: "Unauthorized - Invalid cron secret" }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
