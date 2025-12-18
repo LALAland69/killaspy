@@ -1,4 +1,6 @@
 // Comprehensive logging system for KillaSpy
+import { toast } from "sonner";
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogEntry {
@@ -13,6 +15,13 @@ export interface LogEntry {
 
 const MAX_LOGS = 1000;
 const STORAGE_KEY = 'killaspy_logs';
+
+// Error notification settings
+let errorNotificationsEnabled = true;
+
+export function setErrorNotifications(enabled: boolean) {
+  errorNotificationsEnabled = enabled;
+}
 
 class Logger {
   private logs: LogEntry[] = [];
@@ -91,6 +100,20 @@ class Logger {
 
     this.saveToStorage();
     this.notifyListeners();
+
+    // Show toast notification for errors and warnings
+    if (errorNotificationsEnabled) {
+      if (entry.level === 'error') {
+        toast.error(`[${entry.category}] ${entry.message}`, {
+          description: entry.data?.error || undefined,
+          duration: 5000,
+        });
+      } else if (entry.level === 'warn') {
+        toast.warning(`[${entry.category}] ${entry.message}`, {
+          duration: 3000,
+        });
+      }
+    }
 
     // Also log to console in development
     const consoleMethod = entry.level === 'error' ? 'error' : 
