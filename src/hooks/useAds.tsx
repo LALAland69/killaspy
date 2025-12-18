@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { logger } from "@/lib/logger";
 
 export type Ad = Tables<"ads"> & {
   advertisers?: Tables<"advertisers"> | null;
@@ -23,6 +24,9 @@ export function useAds(limit?: number, filters?: AdsFilters) {
   return useQuery({
     queryKey: ["ads", limit, filters],
     queryFn: async () => {
+      const startTime = performance.now();
+      logger.debug('API', 'Fetching ads', { limit, filters });
+      
       let query = supabase
         .from("ads")
         .select(`
@@ -60,7 +64,16 @@ export function useAds(limit?: number, filters?: AdsFilters) {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      const duration = Math.round(performance.now() - startTime);
+      
+      if (error) {
+        logger.apiCall('ads/list', 'SELECT', 400, duration, error.message);
+        throw error;
+      }
+      
+      logger.apiCall('ads/list', 'SELECT', 200, duration);
+      logger.debug('API', 'Ads fetched', { count: data.length, duration: `${duration}ms` });
+      
       return data as Ad[];
     },
   });

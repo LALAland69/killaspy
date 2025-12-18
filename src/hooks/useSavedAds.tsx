@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 export interface SavedAd {
   id: string;
@@ -16,12 +17,22 @@ export function useSavedAds() {
   return useQuery({
     queryKey: ["saved-ads"],
     queryFn: async () => {
+      const startTime = performance.now();
+      logger.debug('API', 'Fetching saved ads');
+      
       const { data, error } = await supabase
         .from("saved_ads")
         .select("*")
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
+      const duration = Math.round(performance.now() - startTime);
+      
+      if (error) {
+        logger.apiCall('saved_ads/list', 'SELECT', 400, duration, error.message);
+        throw error;
+      }
+      
+      logger.apiCall('saved_ads/list', 'SELECT', 200, duration);
       return data as SavedAd[];
     },
   });
@@ -46,6 +57,8 @@ export function useSaveAd() {
   
   return useMutation({
     mutationFn: async (adId: string) => {
+      logger.info('ACTION', 'Saving ad to favorites', { adId });
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
@@ -66,7 +79,12 @@ export function useSaveAd() {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        logger.error('ACTION', 'Failed to save ad', { adId, error: error.message });
+        throw error;
+      }
+      
+      logger.info('ACTION', 'Ad saved to favorites', { adId });
       return data;
     },
     onSuccess: () => {
@@ -85,12 +103,19 @@ export function useUnsaveAd() {
   
   return useMutation({
     mutationFn: async (adId: string) => {
+      logger.info('ACTION', 'Removing ad from favorites', { adId });
+      
       const { error } = await supabase
         .from("saved_ads")
         .delete()
         .eq("ad_id", adId);
       
-      if (error) throw error;
+      if (error) {
+        logger.error('ACTION', 'Failed to remove saved ad', { adId, error: error.message });
+        throw error;
+      }
+      
+      logger.info('ACTION', 'Ad removed from favorites', { adId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-ads"] });
