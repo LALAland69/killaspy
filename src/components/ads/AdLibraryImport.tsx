@@ -30,32 +30,47 @@ const COUNTRIES = [
 // Error Alert Component
 function ApiErrorAlert({ error, onRetry }: { error: FacebookApiError; onRetry: () => void }) {
   return (
-    <Alert variant="destructive" className="mt-4">
-      <AlertCircle className="h-4 w-4" />
-      <AlertTitle className="flex items-center justify-between">
-        <span>{error.isTransient ? "Erro Temporário do Facebook" : "Erro na API"}</span>
-        {error.isTransient && (
-          <Button size="sm" variant="outline" onClick={onRetry} className="h-7">
-            <RefreshCw className="h-3 w-3 mr-1" />
-            Tentar Novamente
+    <Alert variant={error.isTransient ? "default" : "destructive"} className="mt-4 border-amber-500/50 bg-amber-500/10">
+      <AlertCircle className="h-4 w-4 text-amber-500" />
+      <AlertTitle className="flex items-center justify-between flex-wrap gap-2">
+        <span className="text-amber-600 dark:text-amber-400">
+          {error.isTransient ? "⚠️ Erro Temporário do Facebook" : "Erro na API"}
+        </span>
+        <div className="flex gap-2">
+          {error.isTransient && (
+            <Button size="sm" variant="outline" onClick={onRetry} className="h-7">
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Tentar Novamente
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" asChild className="h-7">
+            <a href="/health">
+              <Info className="h-3 w-3 mr-1" />
+              Health Check
+            </a>
           </Button>
-        )}
+        </div>
       </AlertTitle>
       <AlertDescription className="mt-2 space-y-2">
-        <p className="text-sm">{error.message}</p>
-        
         {error.fbtrace_id && (
-          <div className="flex items-center gap-2 text-xs font-mono bg-destructive/10 p-2 rounded">
-            <Info className="h-3 w-3" />
-            <span>fbtrace_id: {error.fbtrace_id}</span>
+          <div className="flex items-center gap-2 text-xs font-mono bg-background/50 p-2 rounded border">
+            <span className="text-muted-foreground">Facebook Trace ID:</span>
+            <code className="text-foreground">{error.fbtrace_id}</code>
           </div>
         )}
         
         {error.suggestion && (
-          <div className="flex items-start gap-2 text-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 p-2 rounded">
-            <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div className="flex items-start gap-2 text-sm p-2 rounded bg-background/50 border">
+            <Info className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-500" />
             <span>{error.suggestion}</span>
           </div>
+        )}
+
+        {error.isTransient && (
+          <p className="text-xs text-muted-foreground">
+            O Facebook está retornando erros temporários (código 1). Isso geralmente se resolve em alguns minutos.
+            Aguarde e tente novamente, ou verifique o status na página de Health Check.
+          </p>
         )}
       </AlertDescription>
     </Alert>
