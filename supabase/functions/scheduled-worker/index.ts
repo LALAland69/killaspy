@@ -1,10 +1,91 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-signature, x-cron-timestamp",
 };
+
+// HMAC signature verification for cron job calls
+async function verifyCronSignature(
+  signature: string | null,
+  timestamp: string | null,
+  body: string
+): Promise<boolean> {
+  if (!signature || !timestamp) {
+    return false;
+  }
+  
+  // Reject requests older than 5 minutes (anti-replay)
+  const requestTime = parseInt(timestamp, 10);
+  const now = Date.now();
+  if (isNaN(requestTime) || Math.abs(now - requestTime) > 300000) {
+    console.warn("Request timestamp too old or invalid");
+    return false;
+  }
+  
+  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!secret) {
+    console.error("Service role key not configured");
+    return false;
+  }
+  
+  // Create HMAC signature: timestamp + body
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  
+  const message = `${timestamp}.${body}`;
+  const signatureBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(message)
+  );
+  
+  const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+  
+  // Constant-time comparison
+  if (signature.length !== expectedSignature.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < signature.length; i++) {
+    result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  }
+  
+  return result === 0;
+}
+
+// Verify JWT token from Supabase auth
+async function verifyJWT(authHeader: string | null): Promise<{ valid: boolean; userId?: string }> {
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { valid: false };
+  }
+  
+  const token = authHeader.substring(7);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  });
+  
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error || !user) {
+    return { valid: false };
+  }
+  
+  return { valid: true, userId: user.id };
+}
 
 // URL validation to prevent SSRF attacks
 function isValidExternalUrl(urlString: string): boolean {
@@ -275,7 +356,41 @@ serve(async (req) => {
   let jobRunId: string | null = null;
   
   try {
-    const { taskType, scheduleType } = await req.json().catch(() => ({}));
+    // Read body once for auth verification and parsing
+    const bodyText = await req.text();
+    
+    // Authentication: Check either HMAC signature (cron) or JWT (user)
+    const cronSignature = req.headers.get("x-cron-signature");
+    const cronTimestamp = req.headers.get("x-cron-timestamp");
+    const authHeader = req.headers.get("authorization");
+    
+    let isAuthenticated = false;
+    let authSource = "none";
+    
+    // Priority 1: HMAC signature for cron jobs
+    if (cronSignature && cronTimestamp) {
+      isAuthenticated = await verifyCronSignature(cronSignature, cronTimestamp, bodyText);
+      authSource = "hmac";
+    }
+    
+    // Priority 2: JWT for authenticated users
+    if (!isAuthenticated && authHeader) {
+      const jwtResult = await verifyJWT(authHeader);
+      isAuthenticated = jwtResult.valid;
+      authSource = "jwt";
+    }
+    
+    if (!isAuthenticated) {
+      console.warn(`Unauthorized request attempt from ${req.headers.get("x-forwarded-for") || "unknown"}`);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    console.log(`Authenticated via ${authSource}`);
+    
+    const { taskType, scheduleType } = bodyText ? JSON.parse(bodyText) : {};
     const type = taskType || "divergence_test";
     const schedule = scheduleType || "daily";
     const jobName = JOB_NAMES[type]?.[schedule] || `${type} (${schedule})`;
