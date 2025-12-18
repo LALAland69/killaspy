@@ -707,10 +707,18 @@ serve(async (req) => {
     let isFullHarvest = false;
     let incrementalHours = 6;
 
+    // Parse harvest mode from body (incremental, 24h, 7d)
+    const harvestMode = body.harvestMode || "incremental";
+    if (harvestMode === "24h") {
+      incrementalHours = 24;
+    } else if (harvestMode === "7d") {
+      incrementalHours = 168; // 7 * 24
+    }
+
     if (body.scheduled === true) {
       isScheduled = true;
       isFullHarvest = body.fullHarvest === true;
-      incrementalHours = validateIncrementalHours(body.incrementalHours);
+      incrementalHours = body.fullHarvest ? 0 : validateIncrementalHours(body.incrementalHours || incrementalHours);
       
       const harvestType = isFullHarvest ? "FULL (all 2025)" : `INCREMENTAL (last ${incrementalHours}h)`;
       console.log(`Running ${harvestType} scheduled harvest for all tenants`);
@@ -757,15 +765,19 @@ serve(async (req) => {
         categoryId = body.categoryId;
       }
       
+      // Check for fullHarvest flag from user request
       isFullHarvest = body.fullHarvest === true;
     }
 
-    // Determine the date filter
-    const dateMin = isFullHarvest 
-      ? AD_DELIVERY_DATE_MIN_BASE  // Full: desde 01/01/2025
-      : getIncrementalStartDate(incrementalHours); // Incremental: últimas X horas
+    // Determine the date filter based on mode
+    let dateMin: string;
+    if (isFullHarvest) {
+      dateMin = AD_DELIVERY_DATE_MIN_BASE; // Full: desde 01/01/2025
+    } else {
+      dateMin = getIncrementalStartDate(incrementalHours); // Incremental: últimas X horas
+    }
 
-    console.log(`Date filter: ads since ${dateMin}`);
+    console.log(`Harvest mode: ${harvestMode}, Hours: ${incrementalHours}, Date filter: ads since ${dateMin}`);
 
     // Fetch categories to process
     let categoriesQuery = supabaseAdmin

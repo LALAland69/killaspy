@@ -26,6 +26,7 @@ import AlertsPage from "./pages/AlertsPage";
 import SecurityAuditsPage from "./pages/SecurityAuditsPage";
 import AuditDetailPage from "./pages/AuditDetailPage";
 import LogsPage from "./pages/LogsPage";
+import HealthCheckPage from "./pages/HealthCheckPage";
 import NotFound from "./pages/NotFound";
 import SalesPage from "./pages/SalesPage";
 import PrivacyPage from "./pages/PrivacyPage";
@@ -155,6 +156,11 @@ const App = () => (
                 <Route path="/logs" element={
                   <ProtectedRoute>
                     <LogsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/health" element={
+                  <ProtectedRoute>
+                    <HealthCheckPage />
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />
