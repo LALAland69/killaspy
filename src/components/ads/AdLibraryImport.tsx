@@ -85,15 +85,16 @@ export function AdLibraryImport() {
   const [limit, setLimit] = useState(25);
   const [scheduleName, setScheduleName] = useState("");
 
-  const { search, isSearching, previews, clearPreviews, lastError: searchError } = useAdLibrarySearch();
-  const { importAds, isImporting, lastError: importError } = useAdLibraryImport();
+  const { search, isSearching, previews, clearPreviews, lastError: searchError, retryInfo: searchRetryInfo } = useAdLibrarySearch();
+  const { importAds, isImporting, lastError: importError, retryInfo: importRetryInfo } = useAdLibraryImport();
   const { data: schedules, isLoading: schedulesLoading } = useImportSchedules();
   const createSchedule = useCreateSchedule();
   const toggleSchedule = useToggleSchedule();
   const deleteSchedule = useDeleteSchedule();
   
-  // Combine errors
+  // Combine errors and retry info
   const apiError = searchError || importError;
+  const retryInfo = searchRetryInfo || importRetryInfo;
 
   const getSearchParams = () => ({
     search_terms: searchTerms.trim() || undefined,
@@ -259,8 +260,23 @@ export function AdLibraryImport() {
               </Button>
             </div>
 
+            {/* Retry Progress Indicator */}
+            {retryInfo && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 animate-pulse">
+                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                    Tentativa {retryInfo.attempt} de {retryInfo.maxRetries}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Erro temporário do Facebook. Tentando novamente automaticamente...
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Error Display with Details */}
-            {apiError && (
+            {apiError && !retryInfo && (
               <ApiErrorAlert error={apiError} onRetry={handleSearch} />
             )}
 
