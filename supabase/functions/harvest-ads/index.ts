@@ -14,6 +14,149 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Filter for 2025 ads only
 const AD_DELIVERY_DATE_MIN_BASE = "2025-01-01";
 
+// ============= DETAILED LOGGING HELPERS =============
+
+interface FacebookErrorResponse {
+  error?: {
+    message?: string;
+    type?: string;
+    code?: number;
+    error_subcode?: number;
+    error_user_msg?: string;
+    error_user_title?: string;
+    fbtrace_id?: string;
+    is_transient?: boolean;
+  };
+}
+
+interface FacebookAPILog {
+  timestamp: string;
+  function: string;
+  action: string;
+  request?: {
+    keyword?: string;
+    country?: string;
+    dateMin?: string;
+    adActiveStatus?: string;
+    limit?: number;
+    urlMasked?: string;
+  };
+  response?: {
+    status?: number;
+    statusText?: string;
+    responseTimeMs?: number;
+    headers?: Record<string, string>;
+    dataCount?: number;
+    hasNextPage?: boolean;
+    body?: unknown;
+    error?: FacebookErrorResponse["error"];
+  };
+  tokenInfo?: {
+    configured: boolean;
+    length?: number;
+    prefix?: string;
+  };
+  message?: string;
+}
+
+function logFacebookAPI(log: FacebookAPILog): void {
+  console.log(`[FB-API] ${JSON.stringify(log, null, 2)}`);
+}
+
+function maskToken(token: string | undefined): string {
+  if (!token) return "NOT_CONFIGURED";
+  if (token.length < 20) return "INVALID_LENGTH";
+  return `${token.substring(0, 10)}...${token.substring(token.length - 5)}`;
+}
+
+function extractRelevantHeaders(headers: Headers): Record<string, string> {
+  const relevant: Record<string, string> = {};
+  const keysToExtract = [
+    "x-fb-trace-id",
+    "x-fb-request-id", 
+    "x-fb-rev",
+    "x-fb-debug",
+    "retry-after",
+    "x-app-usage",
+    "x-ad-account-usage",
+    "content-type",
+    "www-authenticate",
+  ];
+  
+  keysToExtract.forEach(key => {
+    const value = headers.get(key);
+    if (value) {
+      relevant[key] = value;
+    }
+  });
+  
+  return relevant;
+}
+
+function parseFacebookError(responseBody: unknown): FacebookErrorResponse["error"] | undefined {
+  if (typeof responseBody === "object" && responseBody !== null) {
+    const body = responseBody as FacebookErrorResponse;
+    return body.error;
+  }
+  return undefined;
+}
+
+function getErrorExplanation(errorCode?: number, subcode?: number): string {
+  // Facebook error codes reference
+  const errorMap: Record<number, string> = {
+    1: "Unknown error - try again later",
+    2: "Service temporarily unavailable",
+    4: "API too many calls - rate limit exceeded",
+    10: "Application does not have permission",
+    17: "User request limit reached",
+    100: "Invalid parameter",
+    102: "Session invalid - token may have expired or been revoked",
+    104: "Incorrect signature",
+    190: "Invalid OAuth access token",
+    200: "Permission denied - missing required permission",
+    294: "Access denied - app not authorized",
+    341: "Application limit reached",
+    368: "Temporarily blocked for policies violation",
+    459: "Session is invalid - user needs to log in again",
+    463: "Session expired - token has expired",
+    467: "Invalid access token - token is malformed",
+  };
+  
+  // Subcodes for 190 errors
+  const subcode190Map: Record<number, string> = {
+    458: "User has not authorized application",
+    459: "Session is invalid (user logged out or changed password)",
+    460: "Session is invalid (password changed)",
+    463: "Access token has expired",
+    464: "Session is invalid (user uninstalled app)",
+    467: "Invalid access token (token malformed)",
+  };
+  
+  if (errorCode === 190 && subcode && subcode190Map[subcode]) {
+    return subcode190Map[subcode];
+  }
+  
+  return errorMap[errorCode || 0] || "Unknown error code";
+}
+
+// Log token status at startup
+function logTokenStatus(): void {
+  const log: FacebookAPILog = {
+    timestamp: new Date().toISOString(),
+    function: "harvest-ads",
+    action: "token_validation",
+    tokenInfo: {
+      configured: !!FACEBOOK_ACCESS_TOKEN,
+      length: FACEBOOK_ACCESS_TOKEN?.length,
+      prefix: FACEBOOK_ACCESS_TOKEN?.substring(0, 10),
+    },
+    message: FACEBOOK_ACCESS_TOKEN 
+      ? `Token configured (${FACEBOOK_ACCESS_TOKEN.length} chars)` 
+      : "❌ TOKEN NOT CONFIGURED",
+  };
+  logFacebookAPI(log);
+}
+
 // HMAC signature verification for cron job calls
 async function verifyCronSignature(
   signature: string | null,
@@ -147,8 +290,17 @@ async function fetchAdsPage(
   limit: number = 100,
   afterCursor?: string
 ): Promise<{ ads: FacebookAd[]; nextCursor?: string }> {
+  const requestStartTime = Date.now();
+  
+  // Check token before making request
   if (!FACEBOOK_ACCESS_TOKEN) {
-    console.error("FACEBOOK_ACCESS_TOKEN not configured");
+    logFacebookAPI({
+      timestamp: new Date().toISOString(),
+      function: "harvest-ads",
+      action: "fetch_ads_page_error",
+      message: "❌ FACEBOOK_ACCESS_TOKEN not configured - cannot make API call",
+      tokenInfo: { configured: false },
+    });
     return { ads: [] };
   }
 
@@ -166,31 +318,150 @@ async function fetchAdsPage(
   });
 
   // Add countries as properly encoded array
-  const url = `${baseUrl}?${params}&ad_reached_countries=${encodeURIComponent(countriesArray)}`;
+  let url = `${baseUrl}?${params}&ad_reached_countries=${encodeURIComponent(countriesArray)}`;
 
   if (afterCursor) {
-    params.append("after", afterCursor);
+    url += `&after=${encodeURIComponent(afterCursor)}`;
   }
 
-  console.log(`Calling Facebook API: keyword="${keyword}", country="${country}", status="${adActiveStatus}"`);
+  // Create masked URL for logging (hide token)
+  const maskedUrl = url.replace(FACEBOOK_ACCESS_TOKEN, maskToken(FACEBOOK_ACCESS_TOKEN));
+
+  // Log pre-request details
+  logFacebookAPI({
+    timestamp: new Date().toISOString(),
+    function: "harvest-ads",
+    action: "fetch_ads_page_request",
+    request: {
+      keyword,
+      country,
+      dateMin,
+      adActiveStatus,
+      limit,
+      urlMasked: maskedUrl,
+    },
+    tokenInfo: {
+      configured: true,
+      length: FACEBOOK_ACCESS_TOKEN.length,
+      prefix: FACEBOOK_ACCESS_TOKEN.substring(0, 10),
+    },
+  });
 
   try {
     const response = await fetch(url);
-    const responseText = await response.text();
+    const responseTimeMs = Date.now() - requestStartTime;
+    const responseHeaders = extractRelevantHeaders(response.headers);
     
+    // Read response body as text first
+    const responseText = await response.text();
+    let responseBody: unknown;
+    
+    try {
+      responseBody = JSON.parse(responseText);
+    } catch {
+      responseBody = { rawText: responseText.substring(0, 500) };
+    }
+    
+    // Log response details
+    const responseLog: FacebookAPILog = {
+      timestamp: new Date().toISOString(),
+      function: "harvest-ads",
+      action: response.ok ? "fetch_ads_page_success" : "fetch_ads_page_error",
+      request: { keyword, country, dateMin },
+      response: {
+        status: response.status,
+        statusText: response.statusText,
+        responseTimeMs,
+        headers: responseHeaders,
+      },
+    };
+
     if (!response.ok) {
-      console.error(`Facebook API error for keyword "${keyword}": status ${response.status}`);
+      // DETAILED ERROR LOGGING
+      const fbError = parseFacebookError(responseBody);
+      
+      responseLog.response!.body = responseBody;
+      responseLog.response!.error = fbError;
+      responseLog.message = fbError 
+        ? `❌ Facebook API Error: [${fbError.code}${fbError.error_subcode ? '.' + fbError.error_subcode : ''}] ${fbError.message} - ${getErrorExplanation(fbError.code, fbError.error_subcode)}`
+        : `❌ Facebook API Error: HTTP ${response.status} ${response.statusText}`;
+      
+      logFacebookAPI(responseLog);
+      
+      // Additional structured error for support
+      console.error(`
+========================================
+🔴 FACEBOOK API ERROR - SUPPORT INFO
+========================================
+Timestamp: ${new Date().toISOString()}
+Request: keyword="${keyword}", country="${country}"
+HTTP Status: ${response.status} ${response.statusText}
+Response Time: ${responseTimeMs}ms
+
+Facebook Error Code: ${fbError?.code || 'N/A'}
+Facebook Error Subcode: ${fbError?.error_subcode || 'N/A'}
+Error Type: ${fbError?.type || 'N/A'}
+Error Message: ${fbError?.message || 'N/A'}
+User Message: ${fbError?.error_user_msg || 'N/A'}
+FB Trace ID: ${fbError?.fbtrace_id || responseHeaders['x-fb-trace-id'] || 'N/A'}
+Is Transient: ${fbError?.is_transient || 'N/A'}
+
+Explanation: ${getErrorExplanation(fbError?.code, fbError?.error_subcode)}
+
+Token Info:
+- Length: ${FACEBOOK_ACCESS_TOKEN.length} characters
+- Prefix: ${FACEBOOK_ACCESS_TOKEN.substring(0, 10)}...
+- Suffix: ...${FACEBOOK_ACCESS_TOKEN.substring(FACEBOOK_ACCESS_TOKEN.length - 5)}
+
+Full Response Body:
+${JSON.stringify(responseBody, null, 2)}
+
+Relevant Headers:
+${JSON.stringify(responseHeaders, null, 2)}
+========================================
+`);
+      
       return { ads: [] };
     }
 
-    const result = JSON.parse(responseText);
-    console.log(`Got ${result.data?.length || 0} ads for keyword "${keyword}" in ${country}`);
+    // Success case
+    const result = responseBody as { data?: FacebookAd[]; paging?: { cursors?: { after?: string } } };
+    responseLog.response!.dataCount = result.data?.length || 0;
+    responseLog.response!.hasNextPage = !!result.paging?.cursors?.after;
+    responseLog.message = `✅ Got ${result.data?.length || 0} ads for "${keyword}" in ${country}`;
+    
+    logFacebookAPI(responseLog);
+    
     return {
       ads: result.data || [],
       nextCursor: result.paging?.cursors?.after,
     };
   } catch (error) {
-    console.error(`Error fetching ads for keyword "${keyword}"`);
+    const responseTimeMs = Date.now() - requestStartTime;
+    
+    // Network/parsing error
+    logFacebookAPI({
+      timestamp: new Date().toISOString(),
+      function: "harvest-ads",
+      action: "fetch_ads_page_exception",
+      request: { keyword, country, dateMin },
+      response: { responseTimeMs },
+      message: `❌ Exception: ${error instanceof Error ? error.message : String(error)}`,
+    });
+    
+    console.error(`
+========================================
+🔴 FETCH EXCEPTION - SUPPORT INFO
+========================================
+Timestamp: ${new Date().toISOString()}
+Request: keyword="${keyword}", country="${country}"
+Response Time: ${responseTimeMs}ms
+Error Type: ${error instanceof Error ? error.constructor.name : typeof error}
+Error Message: ${error instanceof Error ? error.message : String(error)}
+Stack: ${error instanceof Error ? error.stack : 'N/A'}
+========================================
+`);
+    
     return { ads: [] };
   }
 }
@@ -337,6 +608,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Log token status at start of every request
+  logTokenStatus();
+  console.log(`[harvest-ads] Request received at ${new Date().toISOString()}`);
 
   try {
     // Read body once for auth verification and parsing
