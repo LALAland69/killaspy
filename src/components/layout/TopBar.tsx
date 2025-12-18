@@ -1,8 +1,10 @@
-import { Database, User, LogOut, Bell, Settings, Menu, X } from "lucide-react";
+import { Database, User, LogOut, Bell, Settings, Menu, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AlertsDropdown } from "@/components/alerts/AlertsDropdown";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import {
@@ -21,30 +23,32 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const mainNavigation = [
-  { name: "Trends", href: "/trends" },
-  { name: "Ad Library", href: "/ads" },
-  { name: "Saved Ads", href: "/saved-ads" },
-  { name: "Divergência", href: "/divergence" },
-  { name: "Intelligence", href: "/intelligence" },
-];
-
-const moreNavigation = [
-  { name: "Dashboard", href: "/" },
-  { name: "Anunciantes", href: "/advertisers" },
-  { name: "Domínios", href: "/domains" },
-  { name: "Auditoria", href: "/security-audits" },
-  { name: "Import", href: "/import" },
-  { name: "Jobs", href: "/jobs" },
-  { name: "Alertas", href: "/alerts" },
-];
-
-const allNavigation = [...mainNavigation, ...moreNavigation];
-
 export function TopBar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const { t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const mainNavigation = [
+    { name: t('nav.trends'), href: "/trends" },
+    { name: t('nav.adLibrary'), href: "/ads" },
+    { name: t('nav.savedAds'), href: "/saved-ads" },
+    { name: t('nav.divergence'), href: "/divergence" },
+    { name: t('nav.intelligence'), href: "/intelligence" },
+  ];
+
+  const moreNavigation = [
+    { name: t('nav.dashboard'), href: "/" },
+    { name: t('nav.advertisers'), href: "/advertisers" },
+    { name: t('nav.domains'), href: "/domains" },
+    { name: t('nav.audit'), href: "/security-audits" },
+    { name: t('nav.import'), href: "/import" },
+    { name: t('nav.jobs'), href: "/jobs" },
+    { name: t('nav.alerts'), href: "/alerts" },
+    { name: t('nav.logs'), href: "/logs" },
+  ];
+
+  const allNavigation = [...mainNavigation, ...moreNavigation];
 
   return (
     <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-background px-4 md:px-6">
@@ -68,7 +72,7 @@ export function TopBar() {
                 const isActive = location.pathname === item.href;
                 return (
                   <Link
-                    key={item.name}
+                    key={item.href}
                     to={item.href}
                     onClick={() => setMobileMenuOpen(false)}
                     className={cn(
@@ -101,7 +105,7 @@ export function TopBar() {
                     className="text-destructive"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
-                    Sair
+                    {t('nav.logout')}
                   </Button>
                 </div>
               </div>
@@ -124,7 +128,7 @@ export function TopBar() {
             const isActive = location.pathname === item.href;
             return (
               <Link
-                key={item.name}
+                key={item.href}
                 to={item.href}
                 className={cn(
                   "px-4 py-2 text-sm font-medium transition-colors rounded-md",
@@ -148,12 +152,12 @@ export function TopBar() {
                 variant="ghost"
                 className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
               >
-                Mais
+                {t('nav.more')}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
               {moreNavigation.map((item) => (
-                <DropdownMenuItem key={item.name} asChild>
+                <DropdownMenuItem key={item.href} asChild>
                   <Link to={item.href} className="w-full cursor-pointer">
                     {item.name}
                   </Link>
@@ -166,6 +170,7 @@ export function TopBar() {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        <LanguageSwitcher />
         <AlertsDropdown />
         
         {user && (
@@ -187,13 +192,19 @@ export function TopBar() {
               <DropdownMenuItem asChild>
                 <Link to="/settings" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
-                  Configurações
+                  {t('nav.settings')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/logs" className="cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4" />
+                  {t('nav.logs')}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
-                Sair
+                {t('nav.logout')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
