@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { loggedEdgeFunction, logAction } from "@/lib/apiLogger";
 
 export function useSeedData() {
   const queryClient = useQueryClient();
@@ -8,7 +8,9 @@ export function useSeedData() {
 
   return useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("seed-demo-data");
+      logAction('Seed Demo Data Started');
+      
+      const { data, error } = await loggedEdgeFunction("seed-demo-data");
       if (error) throw error;
       return data;
     },
@@ -19,12 +21,15 @@ export function useSeedData() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["niche-trends"] });
       queryClient.invalidateQueries({ queryKey: ["risk-distribution"] });
+      
+      logAction('Seed Demo Data Success');
       toast({
         title: "Demo Data Loaded",
         description: "Sample data has been seeded successfully.",
       });
     },
     onError: (error) => {
+      logAction('Seed Demo Data Error', { error: error.message });
       toast({
         title: "Error",
         description: error.message,

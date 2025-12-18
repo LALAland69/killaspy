@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { loggedEdgeFunction, logAction } from "@/lib/apiLogger";
 
 interface SearchParams {
   search_terms?: string;
@@ -34,8 +34,11 @@ export function useAdLibrarySearch() {
 
   const mutation = useMutation({
     mutationFn: async (params: SearchParams) => {
-      const { data, error } = await supabase.functions.invoke('facebook-ad-library', {
-        body: { action: 'search', params }
+      logAction('Ad Library Search', { params });
+      
+      const { data, error } = await loggedEdgeFunction('facebook-ad-library', {
+        action: 'search',
+        params
       });
 
       if (error) throw error;
@@ -45,9 +48,11 @@ export function useAdLibrarySearch() {
     },
     onSuccess: (ads) => {
       setPreviews(ads);
+      logAction('Ad Library Search Success', { count: ads.length });
       toast.success(`Found ${ads.length} ads`);
     },
     onError: (error: Error) => {
+      logAction('Ad Library Search Error', { error: error.message });
       toast.error(`Search failed: ${error.message}`);
     },
   });
@@ -65,8 +70,11 @@ export function useAdLibraryImport() {
 
   const mutation = useMutation({
     mutationFn: async (params: SearchParams) => {
-      const { data, error } = await supabase.functions.invoke('facebook-ad-library', {
-        body: { action: 'import', params }
+      logAction('Ad Library Import Started', { params });
+      
+      const { data, error } = await loggedEdgeFunction('facebook-ad-library', {
+        action: 'import',
+        params
       });
 
       if (error) throw error;
@@ -80,11 +88,13 @@ export function useAdLibraryImport() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['job-history'] });
       
+      logAction('Ad Library Import Success', results);
       toast.success(
         `Import complete: ${results.imported} new, ${results.updated} updated, ${results.advertisers_created} advertisers created`
       );
     },
     onError: (error: Error) => {
+      logAction('Ad Library Import Error', { error: error.message });
       toast.error(`Import failed: ${error.message}`);
     },
   });
