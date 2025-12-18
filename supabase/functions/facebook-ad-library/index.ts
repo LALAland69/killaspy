@@ -63,20 +63,18 @@ interface FacebookAd {
 }
 
 async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]> {
-  // Use v21.0 - more stable and current version
-  const baseUrl = 'https://graph.facebook.com/v21.0/ads_archive';
-  
   // Log token info for debugging
   const tokenLength = FACEBOOK_ACCESS_TOKEN?.length || 0;
   const tokenPrefix = FACEBOOK_ACCESS_TOKEN?.substring(0, 12) || 'NONE';
-  const tokenSuffix = FACEBOOK_ACCESS_TOKEN?.substring(tokenLength - 6) || 'NONE';
+  const tokenSuffix = FACEBOOK_ACCESS_TOKEN?.substring(Math.max(0, tokenLength - 6)) || 'NONE';
   console.log(`[TOKEN-DEBUG] Token length: ${tokenLength}, Prefix: ${tokenPrefix}..., Suffix: ...${tokenSuffix}`);
-  
+
   const queryParams = new URLSearchParams({
     access_token: FACEBOOK_ACCESS_TOKEN!,
     ad_type: params.ad_type || 'ALL',
     ad_active_status: params.ad_active_status || 'ALL',
-    fields: 'id,ad_creation_time,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_titles,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,publisher_platforms,languages,estimated_audience_size,spend,impressions,bylines,ad_snapshot_url',
+    fields:
+      'id,ad_creation_time,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_titles,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,publisher_platforms,languages,estimated_audience_size,spend,impressions,bylines,ad_snapshot_url',
     limit: String(params.limit || 50),
   });
 
@@ -85,6 +83,7 @@ async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]
   }
 
   if (params.ad_reached_countries && params.ad_reached_countries.length > 0) {
+    // Graph API expects a JSON array string: ["US"]
     queryParams.append('ad_reached_countries', JSON.stringify(params.ad_reached_countries));
   }
 
@@ -92,44 +91,129 @@ async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]
     queryParams.append('search_page_ids', params.search_page_ids.join(','));
   }
 
-  console.log('Fetching from Ad Library:', `${baseUrl}?${queryParams.toString().replace(FACEBOOK_ACCESS_TOKEN!, '[REDACTED]')}`);
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const response = await fetch(`${baseUrl}?${queryParams.toString()}`);
-  const data = await response.json();
+  // Primary + fallback versions (Meta sometimes has transient issues per-version)
+  const versionsToTry = ['v21.0', 'v24.0'];
+  const maxAttemptsPerVersion = 2;
 
-  console.log(`[API-RESPONSE] Status: ${response.status}, Has Error: ${!!data.error}`);
+  const queryString = queryParams.toString();
 
-  if (data.error) {
-    const errorCode = data.error.code;
-    const errorSubcode = data.error.error_subcode;
-    const errorMessage = data.error.message || 'Unknown Facebook API error';
-    
-    console.error('Facebook API Error:', JSON.stringify(data.error, null, 2));
-    
-    // Critical token errors - must throw to fail the job properly
-    const criticalTokenErrors = [102, 190, 463, 467, 459];
-    if (criticalTokenErrors.includes(errorCode)) {
-      console.error(`[CRITICAL] Token error detected - Code: ${errorCode}, Subcode: ${errorSubcode}`);
-      throw new Error(`Token Error [${errorCode}]: ${errorMessage}. Please check your Facebook Access Token.`);
+  for (const version of versionsToTry) {
+    const baseUrl = `https://graph.facebook.com/${version}/ads_archive`;
+
+    for (let attempt = 1; attempt <= maxAttemptsPerVersion; attempt++) {
+      const url = `${baseUrl}?${queryString}`;
+      console.log(
+        `Fetching from Ad Library (version=${version}, attempt=${attempt}/${maxAttemptsPerVersion}): ` +
+          url.replace(FACEBOOK_ACCESS_TOKEN!, '[REDACTED]')
+      );
+
+      const response = await fetch(url);
+      const responseText = await response.text();
+
+      let data: any;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        data = { rawText: responseText.substring(0, 500) };
+      }
+
+      const fbError = data?.error;
+      console.log(`[API-RESPONSE] Status: ${response.status}, Has Error: ${!!fbError}`);
+
+      if (!fbError && response.ok) {
+        console.log(`Fetched ${data.data?.length || 0} ads from Ad Library`);
+        return data.data || [];
+      }
+
+      if (fbError) {
+        const errorCode = fbError.code;
+        const errorSubcode = fbError.error_subcode;
+        const errorMessage = fbError.message || 'Unknown Facebook API error';
+        const fbtraceId = fbError.fbtrace_id;
+
+        console.error('Facebook API Error:', JSON.stringify(fbError, null, 2));
+
+        // Critical token errors - must throw to fail the job properly
+        const criticalTokenErrors = [102, 190, 463, 467, 459];
+        if (criticalTokenErrors.includes(errorCode)) {
+          console.error(`[CRITICAL] Token error detected - Code: ${errorCode}, Subcode: ${errorSubcode}`);
+          throw new Error(
+            `Token Error [${errorCode}]: ${errorMessage}` +
+              (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '')
+          );
+        }
+
+        // Rate limit errors
+        if (errorCode === 4 || errorCode === 17 || errorCode === 341) {
+          console.error(`[RATE_LIMIT] API rate limit reached - Code: ${errorCode}`);
+          throw new Error(
+            `Rate Limit Error [${errorCode}]: ${errorMessage}` +
+              (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '')
+          );
+        }
+
+        // Permission errors
+        if (errorCode === 10 || errorCode === 200 || errorCode === 294) {
+          console.error(`[PERMISSION] Missing permission - Code: ${errorCode}`);
+          throw new Error(
+            `Permission Error [${errorCode}]: ${errorMessage}` +
+              (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '')
+          );
+        }
+
+        // Transient/unknown OAuthException (commonly intermittent on Meta side)
+        const isTransient =
+          errorCode === 1 || errorCode === 2 || fbError.is_transient === true || response.status >= 500;
+
+        if (isTransient) {
+          const transientHint =
+            `Facebook API temporary error [${errorCode}]: ${errorMessage}` +
+            (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '');
+
+          if (attempt < maxAttemptsPerVersion) {
+            console.warn(`[TRANSIENT] ${transientHint} → retrying...`);
+            await delay(350 * attempt);
+            continue;
+          }
+
+          // Try fallback API version
+          if (version !== versionsToTry[versionsToTry.length - 1]) {
+            console.warn(`[TRANSIENT] ${transientHint} → trying fallback API version...`);
+            break;
+          }
+
+          throw new Error(`${transientHint}. Please try again in a few minutes.`);
+        }
+
+        // Non-transient, unknown error
+        throw new Error(
+          `Facebook API Error [${errorCode}]: ${errorMessage}` +
+            (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '')
+        );
+      }
+
+      // Non-JSON or non-error body but not OK
+      const isServerError = response.status >= 500;
+      if (isServerError && attempt < maxAttemptsPerVersion) {
+        console.warn(`[TRANSIENT] Facebook API HTTP ${response.status} → retrying...`);
+        await delay(350 * attempt);
+        continue;
+      }
+      if (isServerError && version !== versionsToTry[versionsToTry.length - 1]) {
+        console.warn(`[TRANSIENT] Facebook API HTTP ${response.status} → trying fallback API version...`);
+        break;
+      }
+
+      throw new Error(
+        `Facebook API HTTP ${response.status}: ${response.statusText}` +
+          (data?.rawText ? ` (body: ${data.rawText})` : '')
+      );
     }
-    
-    // Rate limit errors
-    if (errorCode === 4 || errorCode === 17 || errorCode === 341) {
-      console.error(`[RATE_LIMIT] API rate limit reached - Code: ${errorCode}`);
-      throw new Error(`Rate Limit Error [${errorCode}]: ${errorMessage}. Please try again later.`);
-    }
-    
-    // Permission errors
-    if (errorCode === 10 || errorCode === 200 || errorCode === 294) {
-      console.error(`[PERMISSION] Missing permission - Code: ${errorCode}`);
-      throw new Error(`Permission Error [${errorCode}]: ${errorMessage}. Ensure your app has 'ads_read' permission approved.`);
-    }
-    
-    throw new Error(errorMessage);
   }
 
-  console.log(`Fetched ${data.data?.length || 0} ads from Ad Library`);
-  return data.data || [];
+  throw new Error('Facebook API is temporarily unavailable. Please try again in a few minutes.');
 }
 
 async function processAndStoreAds(ads: FacebookAd[], tenantId: string, supabase: any) {
