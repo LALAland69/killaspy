@@ -65,6 +65,12 @@ interface FacebookAd {
 async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]> {
   const baseUrl = 'https://graph.facebook.com/v24.0/ads_archive';
   
+  // Log token info for debugging
+  const tokenLength = FACEBOOK_ACCESS_TOKEN?.length || 0;
+  const tokenPrefix = FACEBOOK_ACCESS_TOKEN?.substring(0, 12) || 'NONE';
+  const tokenSuffix = FACEBOOK_ACCESS_TOKEN?.substring(tokenLength - 6) || 'NONE';
+  console.log(`[TOKEN-DEBUG] Token length: ${tokenLength}, Prefix: ${tokenPrefix}..., Suffix: ...${tokenSuffix}`);
+  
   const queryParams = new URLSearchParams({
     access_token: FACEBOOK_ACCESS_TOKEN!,
     ad_type: params.ad_type || 'ALL',
@@ -90,8 +96,10 @@ async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]
   const response = await fetch(`${baseUrl}?${queryParams.toString()}`);
   const data = await response.json();
 
+  console.log(`[API-RESPONSE] Status: ${response.status}, Has Error: ${!!data.error}`);
+
   if (data.error) {
-    console.error('Facebook API Error:', data.error);
+    console.error('Facebook API Error:', JSON.stringify(data.error, null, 2));
     throw new Error(data.error.message || 'Failed to fetch from Ad Library');
   }
 
