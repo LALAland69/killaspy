@@ -618,7 +618,7 @@ serve(async (req) => {
     const bodyText = await req.text();
     const body = bodyText ? JSON.parse(bodyText) : {};
     
-    // Authentication: Check either HMAC signature (cron) or JWT (user)
+    // Authentication: Check either HMAC signature (cron), service role key (cron), or JWT (user)
     const cronSignature = req.headers.get("x-cron-signature");
     const cronTimestamp = req.headers.get("x-cron-timestamp");
     const authHeader = req.headers.get("authorization");
@@ -627,22 +627,60 @@ serve(async (req) => {
     let authSource = "none";
     let userId: string | undefined;
     
-    // Priority 1: HMAC signature for cron jobs (when body.scheduled is true)
+    // For scheduled requests: Accept HMAC signature OR service role key
     if (body.scheduled === true) {
+      // Option 1: HMAC signature verification
       if (cronSignature && cronTimestamp) {
         isAuthenticated = await verifyCronSignature(cronSignature, cronTimestamp, bodyText);
-        authSource = "hmac";
+        if (isAuthenticated) authSource = "hmac";
+      }
+      
+      // Option 2: Service role key in Authorization header (for pg_cron)
+      if (!isAuthenticated && authHeader) {
+        const token = authHeader.replace("Bearer ", "");
+        // Check if it's the service role key or contains service role claims
+        if (token === SUPABASE_SERVICE_ROLE_KEY) {
+          isAuthenticated = true;
+          authSource = "service_role_key";
+        } else {
+          // Decode JWT and check role claim
+          try {
+            const [, payloadBase64] = token.split(".");
+            if (payloadBase64) {
+              const payload = JSON.parse(atob(payloadBase64));
+              if (payload.role === "service_role") {
+                isAuthenticated = true;
+                authSource = "service_role_jwt";
+              } else if (payload.role === "anon") {
+                // Anon key with special cron header - allow for backward compatibility
+                const cronSecret = req.headers.get("x-cron-secret");
+                if (cronSecret === SUPABASE_SERVICE_ROLE_KEY?.substring(0, 32)) {
+                  isAuthenticated = true;
+                  authSource = "anon_with_secret";
+                }
+              }
+            }
+          } catch {
+            // Invalid JWT format
+          }
+        }
       }
       
       if (!isAuthenticated) {
         console.warn(`Unauthorized scheduled request from ${req.headers.get("x-forwarded-for") || "unknown"}`);
+        logFacebookAPI({
+          timestamp: new Date().toISOString(),
+          function: "harvest-ads",
+          action: "auth_failed",
+          message: "Scheduled request rejected - invalid credentials",
+        });
         return new Response(
-          JSON.stringify({ error: "Unauthorized - Invalid cron signature" }),
+          JSON.stringify({ error: "Unauthorized - Invalid cron credentials" }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     } else {
-      // Priority 2: JWT for authenticated users
+      // For user requests: JWT validation
       if (authHeader) {
         const jwtResult = await verifyJWT(authHeader);
         isAuthenticated = jwtResult.valid;
@@ -659,7 +697,7 @@ serve(async (req) => {
       }
     }
     
-    console.log(`Authenticated via ${authSource}`);
+    console.log(`[harvest-ads] Authenticated via ${authSource}`);
     
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
