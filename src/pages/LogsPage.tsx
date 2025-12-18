@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLogs, LogLevel, LogEntry } from "@/lib/logger";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useExportLogsToCloud, useLogExports, useDownloadCloudLog } from "@/hooks/useCloudLogs";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,10 @@ import {
   Info, 
   Bug, 
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Cloud,
+  CloudDownload,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -55,6 +59,11 @@ export default function LogsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [levelFilter, setLevelFilter] = useState<LogLevel | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // Cloud hooks
+  const exportToCloud = useExportLogsToCloud();
+  const { data: cloudExports, isLoading: loadingExports } = useLogExports();
+  const downloadCloudLog = useDownloadCloudLog();
 
   // Get unique categories
   const categories = Array.from(new Set(logs.map(log => log.category)));
@@ -84,6 +93,14 @@ export default function LogsPage() {
     toast.success(`Logs exported as ${format.toUpperCase()}`);
   };
 
+  const handleCloudExport = () => {
+    if (logs.length === 0) {
+      toast.error("No logs to export");
+      return;
+    }
+    exportToCloud.mutate(logs);
+  };
+
   const handleClear = () => {
     clearLogs();
     toast.success('Logs cleared');
@@ -105,6 +122,19 @@ export default function LogsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleCloudExport}
+            disabled={exportToCloud.isPending}
+          >
+            {exportToCloud.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Cloud className="h-4 w-4 mr-2" />
+            )}
+            Cloud
+          </Button>
           <Button variant="outline" size="sm" onClick={() => handleExport('json')}>
             <Download className="h-4 w-4 mr-2" />
             JSON
@@ -275,6 +305,58 @@ export default function LogsPage() {
               </TableBody>
             </Table>
           </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Cloud Exports History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Cloud className="h-4 w-4" />
+            Exportações na Nuvem
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingExports ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !cloudExports || cloudExports.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhuma exportação ainda. Clique em "Cloud" para exportar seus logs.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {cloudExports.map((exp) => (
+                <div
+                  key={exp.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                >
+                  <div>
+                    <p className="text-sm font-medium">
+                      {exp.log_count} logs
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(exp.created_at), 'dd/MM/yyyy HH:mm')} •{' '}
+                      {exp.file_size ? `${(exp.file_size / 1024).toFixed(1)} KB` : ''}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => downloadCloudLog.mutate(exp.file_path)}
+                    disabled={downloadCloudLog.isPending}
+                  >
+                    {downloadCloudLog.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CloudDownload className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

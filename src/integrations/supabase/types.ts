@@ -1005,6 +1005,50 @@ export type Database = {
           },
         ]
       }
+      log_exports: {
+        Row: {
+          created_at: string
+          date_range_end: string | null
+          date_range_start: string | null
+          file_path: string
+          file_size: number | null
+          id: string
+          log_count: number | null
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
+          file_path: string
+          file_size?: number | null
+          id?: string
+          log_count?: number | null
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          log_count?: number | null
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "log_exports_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       niche_trends: {
         Row: {
           created_at: string
