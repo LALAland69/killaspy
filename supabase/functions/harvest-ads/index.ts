@@ -304,8 +304,8 @@ async function fetchAdsPage(
     return { ads: [] };
   }
 
-  // Build URL with proper encoding for array parameter
-  const baseUrl = "https://graph.facebook.com/v24.0/ads_archive";
+  // Use v21.0 - more stable and current version
+  const baseUrl = "https://graph.facebook.com/v21.0/ads_archive";
   const countriesArray = JSON.stringify([country]);
   
   const params = new URLSearchParams({
@@ -421,7 +421,31 @@ ${JSON.stringify(responseHeaders, null, 2)}
 ========================================
 `);
       
-      return { ads: [] };
+      // CRITICAL: Throw exceptions for token/permission errors instead of silent failure
+      const criticalTokenErrors = [102, 190, 463, 467, 459];
+      const permissionErrors = [10, 200, 294];
+      const rateLimitErrors = [4, 17, 341];
+      
+      if (fbError?.code && criticalTokenErrors.includes(fbError.code)) {
+        throw new Error(`[TOKEN_ERROR] Code ${fbError.code}: ${fbError.message || 'Token invalid or expired'}. Check FACEBOOK_ACCESS_TOKEN secret.`);
+      }
+      
+      if (fbError?.code && permissionErrors.includes(fbError.code)) {
+        throw new Error(`[PERMISSION_ERROR] Code ${fbError.code}: ${fbError.message || 'Missing required permission'}. Ensure ads_read permission is approved.`);
+      }
+      
+      if (fbError?.code && rateLimitErrors.includes(fbError.code)) {
+        throw new Error(`[RATE_LIMIT] Code ${fbError.code}: ${fbError.message || 'Rate limit exceeded'}. Try again later.`);
+      }
+      
+      // For transient errors (code 1, 2), return empty to allow retry on next run
+      if (fbError?.code === 1 || fbError?.code === 2 || fbError?.is_transient) {
+        console.warn(`Transient error (code ${fbError?.code}), returning empty to allow retry`);
+        return { ads: [] };
+      }
+      
+      // For unknown errors, throw to mark job as failed
+      throw new Error(`[FB_API_ERROR] HTTP ${response.status}: ${fbError?.message || response.statusText}`);
     }
 
     // Success case

@@ -63,7 +63,8 @@ interface FacebookAd {
 }
 
 async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]> {
-  const baseUrl = 'https://graph.facebook.com/v24.0/ads_archive';
+  // Use v21.0 - more stable and current version
+  const baseUrl = 'https://graph.facebook.com/v21.0/ads_archive';
   
   // Log token info for debugging
   const tokenLength = FACEBOOK_ACCESS_TOKEN?.length || 0;
@@ -99,8 +100,32 @@ async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]
   console.log(`[API-RESPONSE] Status: ${response.status}, Has Error: ${!!data.error}`);
 
   if (data.error) {
+    const errorCode = data.error.code;
+    const errorSubcode = data.error.error_subcode;
+    const errorMessage = data.error.message || 'Unknown Facebook API error';
+    
     console.error('Facebook API Error:', JSON.stringify(data.error, null, 2));
-    throw new Error(data.error.message || 'Failed to fetch from Ad Library');
+    
+    // Critical token errors - must throw to fail the job properly
+    const criticalTokenErrors = [102, 190, 463, 467, 459];
+    if (criticalTokenErrors.includes(errorCode)) {
+      console.error(`[CRITICAL] Token error detected - Code: ${errorCode}, Subcode: ${errorSubcode}`);
+      throw new Error(`Token Error [${errorCode}]: ${errorMessage}. Please check your Facebook Access Token.`);
+    }
+    
+    // Rate limit errors
+    if (errorCode === 4 || errorCode === 17 || errorCode === 341) {
+      console.error(`[RATE_LIMIT] API rate limit reached - Code: ${errorCode}`);
+      throw new Error(`Rate Limit Error [${errorCode}]: ${errorMessage}. Please try again later.`);
+    }
+    
+    // Permission errors
+    if (errorCode === 10 || errorCode === 200 || errorCode === 294) {
+      console.error(`[PERMISSION] Missing permission - Code: ${errorCode}`);
+      throw new Error(`Permission Error [${errorCode}]: ${errorMessage}. Ensure your app has 'ads_read' permission approved.`);
+    }
+    
+    throw new Error(errorMessage);
   }
 
   console.log(`Fetched ${data.data?.length || 0} ads from Ad Library`);
