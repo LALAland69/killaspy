@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-signature, x-cron-timestamp",
 };
 
 const FACEBOOK_ACCESS_TOKEN = Deno.env.get("FACEBOOK_ACCESS_TOKEN");
@@ -12,6 +13,101 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // Filter for 2025 ads only
 const AD_DELIVERY_DATE_MIN_BASE = "2025-01-01";
+
+// HMAC signature verification for cron job calls
+async function verifyCronSignature(
+  signature: string | null,
+  timestamp: string | null,
+  body: string
+): Promise<boolean> {
+  if (!signature || !timestamp) {
+    return false;
+  }
+  
+  // Reject requests older than 5 minutes (anti-replay)
+  const requestTime = parseInt(timestamp, 10);
+  const now = Date.now();
+  if (isNaN(requestTime) || Math.abs(now - requestTime) > 300000) {
+    console.warn("Request timestamp too old or invalid");
+    return false;
+  }
+  
+  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!secret) {
+    console.error("Service role key not configured");
+    return false;
+  }
+  
+  // Create HMAC signature: timestamp + body
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  
+  const message = `${timestamp}.${body}`;
+  const signatureBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(message)
+  );
+  
+  const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+  
+  // Constant-time comparison
+  if (signature.length !== expectedSignature.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < signature.length; i++) {
+    result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  }
+  
+  return result === 0;
+}
+
+// Verify JWT token from Supabase auth
+async function verifyJWT(authHeader: string | null): Promise<{ valid: boolean; userId?: string }> {
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { valid: false };
+  }
+  
+  const token = authHeader.substring(7);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  });
+  
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error || !user) {
+    return { valid: false };
+  }
+  
+  return { valid: true, userId: user.id };
+}
+
+// Input validation
+function validateUUID(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(value);
+}
+
+function validateIncrementalHours(value: unknown): number {
+  const num = typeof value === "number" ? value : parseInt(String(value), 10);
+  if (isNaN(num) || num < 1 || num > 168) { // Max 1 week
+    return 6; // Default
+  }
+  return num;
+}
 
 interface FacebookAd {
   id: string;
@@ -83,14 +179,7 @@ async function fetchAdsPage(
     const responseText = await response.text();
     
     if (!response.ok) {
-      console.error(`Facebook API error for keyword "${keyword}":`, responseText);
-      // Try to parse error for more details
-      try {
-        const errorJson = JSON.parse(responseText);
-        if (errorJson.error) {
-          console.error(`Error code: ${errorJson.error.code}, type: ${errorJson.error.type}, message: ${errorJson.error.message}`);
-        }
-      } catch {}
+      console.error(`Facebook API error for keyword "${keyword}": status ${response.status}`);
       return { ads: [] };
     }
 
@@ -101,7 +190,7 @@ async function fetchAdsPage(
       nextCursor: result.paging?.cursors?.after,
     };
   } catch (error) {
-    console.error(`Error fetching ads for keyword "${keyword}":`, error);
+    console.error(`Error fetching ads for keyword "${keyword}"`);
     return { ads: [] };
   }
 }
@@ -250,43 +339,73 @@ serve(async (req) => {
   }
 
   try {
+    // Read body once for auth verification and parsing
+    const bodyText = await req.text();
+    const body = bodyText ? JSON.parse(bodyText) : {};
+    
+    // Authentication: Check either HMAC signature (cron) or JWT (user)
+    const cronSignature = req.headers.get("x-cron-signature");
+    const cronTimestamp = req.headers.get("x-cron-timestamp");
+    const authHeader = req.headers.get("authorization");
+    
+    let isAuthenticated = false;
+    let authSource = "none";
+    let userId: string | undefined;
+    
+    // Priority 1: HMAC signature for cron jobs (when body.scheduled is true)
+    if (body.scheduled === true) {
+      if (cronSignature && cronTimestamp) {
+        isAuthenticated = await verifyCronSignature(cronSignature, cronTimestamp, bodyText);
+        authSource = "hmac";
+      }
+      
+      if (!isAuthenticated) {
+        console.warn(`Unauthorized scheduled request from ${req.headers.get("x-forwarded-for") || "unknown"}`);
+        return new Response(
+          JSON.stringify({ error: "Unauthorized - Invalid cron signature" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Priority 2: JWT for authenticated users
+      if (authHeader) {
+        const jwtResult = await verifyJWT(authHeader);
+        isAuthenticated = jwtResult.valid;
+        userId = jwtResult.userId;
+        authSource = "jwt";
+      }
+      
+      if (!isAuthenticated) {
+        console.warn(`Unauthorized user request from ${req.headers.get("x-forwarded-for") || "unknown"}`);
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+    
+    console.log(`Authenticated via ${authSource}`);
+    
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    const authHeader = req.headers.get("Authorization");
     let tenantId: string | null = null;
     let categoryId: string | null = null;
     let isScheduled = false;
     let isFullHarvest = false;
     let incrementalHours = 6;
 
-    const body = await req.json().catch(() => ({}));
-    
     if (body.scheduled === true) {
       isScheduled = true;
       isFullHarvest = body.fullHarvest === true;
-      incrementalHours = body.incrementalHours || 6;
+      incrementalHours = validateIncrementalHours(body.incrementalHours);
       
       const harvestType = isFullHarvest ? "FULL (all 2025)" : `INCREMENTAL (last ${incrementalHours}h)`;
       console.log(`Running ${harvestType} scheduled harvest for all tenants`);
-    } else if (authHeader) {
-      const supabaseClient = createClient(
-        SUPABASE_URL,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { Authorization: authHeader } } }
-      );
-
-      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-      if (authError || !user) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Unauthorized" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
+    } else if (userId) {
       const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("tenant_id")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .single();
 
       if (!profile?.tenant_id) {
@@ -297,7 +416,34 @@ serve(async (req) => {
       }
 
       tenantId = profile.tenant_id;
-      categoryId = body.categoryId;
+      
+      // Validate categoryId if provided - must be UUID and belong to user's tenant
+      if (body.categoryId) {
+        if (!validateUUID(body.categoryId)) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Invalid category ID format" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        // Verify category belongs to user's tenant
+        const { data: category, error: catError } = await supabaseAdmin
+          .from("ad_categories")
+          .select("id")
+          .eq("id", body.categoryId)
+          .eq("tenant_id", tenantId)
+          .single();
+        
+        if (catError || !category) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Category not found or access denied" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        categoryId = body.categoryId;
+      }
+      
       isFullHarvest = body.fullHarvest === true;
     }
 
@@ -428,10 +574,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Harvest error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Harvest error:", error instanceof Error ? error.message : "Unknown error");
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
