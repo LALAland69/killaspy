@@ -159,13 +159,15 @@ export function useInitializeDefaultCategories() {
   });
 }
 
+export type HarvestMode = "incremental" | "24h" | "7d";
+
 export function useHarvestCategory() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (categoryId: string) => {
+    mutationFn: async ({ categoryId, mode = "incremental" }: { categoryId: string; mode?: HarvestMode }) => {
       const { data, error } = await supabase.functions.invoke("harvest-ads", {
-        body: { categoryId },
+        body: { categoryId, harvestMode: mode },
       });
       
       if (error) throw error;
@@ -178,6 +180,30 @@ export function useHarvestCategory() {
     },
     onError: (error) => {
       toast.error("Erro na coleta: " + error.message);
+    },
+  });
+}
+
+export function useFullHarvest() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (mode: HarvestMode) => {
+      const { data, error } = await supabase.functions.invoke("harvest-ads", {
+        body: { fullHarvest: true, harvestMode: mode },
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["ad-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["ads"] });
+      queryClient.invalidateQueries({ queryKey: ["job-history"] });
+      toast.success(`Full Harvest: ${data?.imported || 0} novos ads importados`);
+    },
+    onError: (error) => {
+      toast.error("Erro no Full Harvest: " + error.message);
     },
   });
 }

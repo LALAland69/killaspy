@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Download, Loader2, ExternalLink, X, Plus, Trash2, Clock, Target } from "lucide-react";
-import { useAdLibrarySearch, useAdLibraryImport } from "@/hooks/useAdLibraryImport";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Search, Download, Loader2, ExternalLink, X, Plus, Trash2, Clock, Target, AlertCircle, RefreshCw, Info } from "lucide-react";
+import { useAdLibrarySearch, useAdLibraryImport, FacebookApiError } from "@/hooks/useAdLibraryImport";
 import { useImportSchedules, useCreateSchedule, useToggleSchedule, useDeleteSchedule } from "@/hooks/useImportSchedules";
 import { formatDistanceToNow } from "date-fns";
 
@@ -26,6 +27,41 @@ const COUNTRIES = [
   { code: "ES", name: "Spain" },
 ];
 
+// Error Alert Component
+function ApiErrorAlert({ error, onRetry }: { error: FacebookApiError; onRetry: () => void }) {
+  return (
+    <Alert variant="destructive" className="mt-4">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle className="flex items-center justify-between">
+        <span>{error.isTransient ? "Erro Temporário do Facebook" : "Erro na API"}</span>
+        {error.isTransient && (
+          <Button size="sm" variant="outline" onClick={onRetry} className="h-7">
+            <RefreshCw className="h-3 w-3 mr-1" />
+            Tentar Novamente
+          </Button>
+        )}
+      </AlertTitle>
+      <AlertDescription className="mt-2 space-y-2">
+        <p className="text-sm">{error.message}</p>
+        
+        {error.fbtrace_id && (
+          <div className="flex items-center gap-2 text-xs font-mono bg-destructive/10 p-2 rounded">
+            <Info className="h-3 w-3" />
+            <span>fbtrace_id: {error.fbtrace_id}</span>
+          </div>
+        )}
+        
+        {error.suggestion && (
+          <div className="flex items-start gap-2 text-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 p-2 rounded">
+            <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>{error.suggestion}</span>
+          </div>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 export function AdLibraryImport() {
   const [searchTerms, setSearchTerms] = useState("");
   const [pageIds, setPageIds] = useState("");
@@ -34,12 +70,15 @@ export function AdLibraryImport() {
   const [limit, setLimit] = useState(25);
   const [scheduleName, setScheduleName] = useState("");
 
-  const { search, isSearching, previews, clearPreviews } = useAdLibrarySearch();
-  const { importAds, isImporting } = useAdLibraryImport();
+  const { search, isSearching, previews, clearPreviews, lastError: searchError } = useAdLibrarySearch();
+  const { importAds, isImporting, lastError: importError } = useAdLibraryImport();
   const { data: schedules, isLoading: schedulesLoading } = useImportSchedules();
   const createSchedule = useCreateSchedule();
   const toggleSchedule = useToggleSchedule();
   const deleteSchedule = useDeleteSchedule();
+  
+  // Combine errors
+  const apiError = searchError || importError;
 
   const getSearchParams = () => ({
     search_terms: searchTerms.trim() || undefined,
@@ -204,6 +243,11 @@ export function AdLibraryImport() {
                 Import Directly
               </Button>
             </div>
+
+            {/* Error Display with Details */}
+            {apiError && (
+              <ApiErrorAlert error={apiError} onRetry={handleSearch} />
+            )}
 
             {/* Save as Schedule */}
             <div className="border-t pt-4 mt-4">

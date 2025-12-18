@@ -13,15 +13,23 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   useAdCategories,
   useCreateCategory,
   useUpdateCategory,
   useDeleteCategory,
   useInitializeDefaultCategories,
   useHarvestCategory,
+  useFullHarvest,
   AdCategory,
+  HarvestMode,
 } from "@/hooks/useAdCategories";
-import { Plus, Trash2, Edit, Play, Loader2, Tags, Globe, Clock, Database } from "lucide-react";
+import { Plus, Trash2, Edit, Play, Loader2, Tags, Globe, Clock, Database, ChevronDown, Zap } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -59,6 +67,8 @@ export function CategoriesManager() {
     );
   }
 
+  const fullHarvest = useFullHarvest();
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -68,7 +78,32 @@ export function CategoriesManager() {
             Configure as categorias e palavras-chave para coleta automática
           </p>
         </div>
-        <CreateCategoryDialog />
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={fullHarvest.isPending}>
+                {fullHarvest.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-2" />
+                )}
+                Full Harvest
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => fullHarvest.mutate("24h")}>
+                <Clock className="h-4 w-4 mr-2" />
+                Últimas 24 horas
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => fullHarvest.mutate("7d")}>
+                <Clock className="h-4 w-4 mr-2" />
+                Últimos 7 dias
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <CreateCategoryDialog />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -145,19 +180,37 @@ function CategoryCard({ category, onEdit }: { category: AdCategory; onEdit: () =
           )}
         </div>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => harvestCategory.mutate(category.id)}
-            disabled={harvestCategory.isPending || !category.is_active}
-          >
-            {harvestCategory.isPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Play className="h-3 w-3" />
-            )}
-            <span className="ml-1">Coletar Agora</span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={harvestCategory.isPending || !category.is_active}
+              >
+                {harvestCategory.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Play className="h-3 w-3" />
+                )}
+                <span className="ml-1">Coletar</span>
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => harvestCategory.mutate({ categoryId: category.id, mode: "incremental" })}>
+                <Clock className="h-4 w-4 mr-2" />
+                Incremental (6h)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => harvestCategory.mutate({ categoryId: category.id, mode: "24h" })}>
+                <Clock className="h-4 w-4 mr-2" />
+                Últimas 24h
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => harvestCategory.mutate({ categoryId: category.id, mode: "7d" })}>
+                <Clock className="h-4 w-4 mr-2" />
+                Últimos 7 dias
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" variant="ghost" onClick={onEdit}>
             <Edit className="h-3 w-3" />
           </Button>
