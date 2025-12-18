@@ -619,9 +619,11 @@ serve(async (req) => {
     const body = bodyText ? JSON.parse(bodyText) : {};
     
     // Authentication: Check cron secret (scheduled) or JWT (user)
-    const cronSecret = req.headers.get("x-cron-secret");
+    const cronSecretRaw = req.headers.get("x-cron-secret");
+    const cronSecret = cronSecretRaw?.trim();
     const authHeader = req.headers.get("authorization");
-    const HARVEST_CRON_SECRET = Deno.env.get("HARVEST_CRON_SECRET");
+    const HARVEST_CRON_SECRET_RAW = Deno.env.get("HARVEST_CRON_SECRET");
+    const HARVEST_CRON_SECRET = HARVEST_CRON_SECRET_RAW?.trim();
     
     let isAuthenticated = false;
     let authSource = "none";
@@ -629,6 +631,11 @@ serve(async (req) => {
     
     // For scheduled requests: Check HARVEST_CRON_SECRET
     if (body.scheduled === true) {
+      // Debug logging
+      console.log(`[harvest-ads] Secret debug - received: "${cronSecret}" (${cronSecret?.length} chars)`);
+      console.log(`[harvest-ads] Secret debug - env: "${HARVEST_CRON_SECRET}" (${HARVEST_CRON_SECRET?.length} chars)`);
+      console.log(`[harvest-ads] Secret debug - match: ${cronSecret === HARVEST_CRON_SECRET}`);
+      
       if (cronSecret && HARVEST_CRON_SECRET && cronSecret === HARVEST_CRON_SECRET) {
         isAuthenticated = true;
         authSource = "cron_secret";
