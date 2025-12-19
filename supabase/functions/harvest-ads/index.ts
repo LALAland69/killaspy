@@ -642,6 +642,75 @@ serve(async (req) => {
     const bodyText = await req.text();
     const body = bodyText ? JSON.parse(bodyText) : {};
     
+    // Public endpoint to test token validity (no auth required)
+    if (body.action === "test_token") {
+      if (!FACEBOOK_ACCESS_TOKEN) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Token not configured",
+            configured: false 
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Test the token with a minimal API call
+      const testUrl = `https://graph.facebook.com/v21.0/ads_archive?access_token=${FACEBOOK_ACCESS_TOKEN}&ad_reached_countries=["US"]&search_terms=test&limit=1&fields=id`;
+      console.log("[TOKEN-TEST] Testing token validity...");
+      
+      const response = await fetch(testUrl);
+      const data = await response.json();
+      
+      if (data.error) {
+        const errorCode = data.error.code;
+        const errorMessage = data.error.message;
+        const fbtraceId = data.error.fbtrace_id;
+        
+        console.log(`[TOKEN-TEST] Error - Code: ${errorCode}, Message: ${errorMessage}`);
+        
+        // Determine error type
+        let errorType = "unknown";
+        if ([102, 190, 463, 467, 459].includes(errorCode)) {
+          errorType = "token_invalid";
+        } else if ([4, 17, 341].includes(errorCode)) {
+          errorType = "rate_limit";
+        } else if ([10, 200, 294].includes(errorCode)) {
+          errorType = "permission";
+        } else if (errorCode === 1 || errorCode === 2) {
+          errorType = "transient";
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            configured: true,
+            error: errorMessage,
+            error_code: errorCode,
+            error_type: errorType,
+            fbtrace_id: fbtraceId,
+            token_length: FACEBOOK_ACCESS_TOKEN.length,
+            token_prefix: FACEBOOK_ACCESS_TOKEN.substring(0, 10) + "..."
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      console.log(`[TOKEN-TEST] Success - Token is valid, returned ${data.data?.length || 0} ads`);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          configured: true,
+          message: "Token is valid and working",
+          token_length: FACEBOOK_ACCESS_TOKEN.length,
+          token_prefix: FACEBOOK_ACCESS_TOKEN.substring(0, 10) + "...",
+          test_results: data.data?.length || 0
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     // Authentication: Check cron secret (scheduled) or JWT (user)
     const cronSecretRaw = req.headers.get("x-cron-secret");
     const cronSecret = cronSecretRaw?.trim();
