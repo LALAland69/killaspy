@@ -26,7 +26,10 @@ function calculateApiMetrics(logs: LogEntry[]): ApiMetrics {
   const successLogs = recentLogs.filter(l => l.level !== 'error');
   const durations = recentLogs
     .map(l => {
-      const match = l.data?.duration?.match(/(\d+)ms/);
+      // REFATORAÇÃO: Type-safe data access
+      const data = l.data as Record<string, unknown> | undefined;
+      const duration = typeof data?.duration === 'string' ? data.duration : null;
+      const match = duration?.match(/(\d+)ms/);
       return match ? parseInt(match[1]) : null;
     })
     .filter((d): d is number => d !== null);
