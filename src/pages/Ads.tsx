@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AdsGrid } from "@/components/ads/AdsGrid";
 import { AdVariationsPanel } from "@/components/ads/AdVariationsPanel";
 import { VariationPerformanceCharts } from "@/components/ads/VariationPerformanceCharts";
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, Table2, Copy, TrendingUp, RefreshCw, Loader2, Sparkles, Trophy } from "lucide-react";
 import { useAdCategories } from "@/hooks/useAdCategories";
 import { Badge } from "@/components/ui/badge";
+import { useDebounce } from "@/hooks/useDebounce";
 import type { Ad } from "@/hooks/useAds";
 
 export interface AdsFilters {
@@ -42,11 +43,23 @@ const initialFilters: AdsFilters = {
   winningTier: "all",
 };
 
+// PERFORMANCE: Delay de debounce para o campo de busca (ms)
+const SEARCH_DEBOUNCE_DELAY = 400;
+
 export default function Ads() {
   const [filters, setFilters] = useState<AdsFilters>(initialFilters);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedAds, setSelectedAds] = useState<Ad[]>([]);
   const { data: categories } = useAdCategories();
+
+  // PERFORMANCE: Debounce no campo de busca para reduzir chamadas à API
+  const debouncedSearch = useDebounce(filters.search, SEARCH_DEBOUNCE_DELAY);
+  
+  // Filtros efetivos com busca debounced
+  const effectiveFilters = useMemo<AdsFilters>(() => ({
+    ...filters,
+    search: debouncedSearch,
+  }), [filters, debouncedSearch]);
 
   const totalAds = categories?.reduce((sum, cat) => sum + cat.ads_count, 0) || 0;
 
@@ -132,7 +145,7 @@ export default function Ads() {
           </div>
 
           {/* Ads Grid */}
-          <AdsGrid filters={filters} onSelectionChange={setSelectedAds} />
+          <AdsGrid filters={effectiveFilters} onSelectionChange={setSelectedAds} />
         </TabsContent>
 
         <TabsContent value="winners" className="space-y-6">
@@ -145,9 +158,9 @@ export default function Ads() {
             />
           </div>
 
-          {/* Winners Grid */}
+          {/* Winners Grid - PERFORMANCE: Using debounced filters */}
           <AdsGrid 
-            filters={{ ...filters, winningTier: "winners" }} 
+            filters={{ ...effectiveFilters, winningTier: "winners" }} 
             onSelectionChange={setSelectedAds} 
           />
         </TabsContent>
@@ -174,7 +187,7 @@ export default function Ads() {
                 Selecione anúncios vencedores no grid abaixo para analisar padrões ou gerar novas copies.
               </p>
               <AdsGrid 
-                filters={{ ...filters, winningTier: "winners", sortBy: "winning" }} 
+                filters={{ ...effectiveFilters, winningTier: "winners", sortBy: "winning" }} 
                 onSelectionChange={setSelectedAds} 
               />
             </div>
