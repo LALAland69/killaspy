@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.check-new-ads]
 verify_jwt = false
+
+[functions.check-facebook-status]
+verify_jwt = true
