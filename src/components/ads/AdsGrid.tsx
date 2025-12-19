@@ -16,13 +16,12 @@ import {
   FileText,
   ChevronRight,
 } from "lucide-react";
-import { useInfiniteAds, type Ad } from "@/hooks/useAds";
+import { useInfiniteAds, type Ad, type AdsFilters } from "@/hooks/useAds";
 import { useToggleSaveAd } from "@/hooks/useSavedAds";
 import { calculateWinningScore } from "@/hooks/useWinningAds";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link, useNavigate } from "react-router-dom";
-import type { AdsFilters } from "@/pages/Ads";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 

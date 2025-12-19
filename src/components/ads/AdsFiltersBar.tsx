@@ -27,7 +27,7 @@ import {
   Trophy
 } from "lucide-react";
 import type { AdCategory } from "@/hooks/useAdCategories";
-import type { AdsFilters } from "@/pages/Ads";
+import type { AdsFilters } from "@/hooks/useAds";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";

@@ -12,12 +12,17 @@ export type Ad = Tables<"ads"> & {
 
 export interface AdsFilters {
   search?: string;
+  searchBy?: string;
   category?: string;
   country?: string;
+  language?: string;
+  platform?: string;
   status?: string;
+  mediaType?: string;
   riskLevel?: string;
   sortBy?: string;
   winningTier?: string;
+  dateRange?: string;
 }
 
 const PAGE_SIZE = PAGINATION.DEFAULT_PAGE_SIZE;

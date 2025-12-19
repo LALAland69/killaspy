@@ -12,22 +12,7 @@ import { Download, Table2, Copy, TrendingUp, RefreshCw, Loader2, Sparkles, Troph
 import { useAdCategories } from "@/hooks/useAdCategories";
 import { Badge } from "@/components/ui/badge";
 import { useDebounce } from "@/hooks/useDebounce";
-import type { Ad } from "@/hooks/useAds";
-
-export interface AdsFilters {
-  search: string;
-  searchBy: string;
-  category: string;
-  country: string;
-  language: string;
-  platform: string;
-  status: string;
-  mediaType: string;
-  sortBy: string;
-  dateRange: string;
-  riskLevel: string;
-  winningTier: string;
-}
+import type { Ad, AdsFilters } from "@/hooks/useAds";
 
 const initialFilters: AdsFilters = {
   search: "",
