@@ -152,6 +152,7 @@ export type Database = {
           updated_at: string
           visual_hook_score: number | null
           white_url: string | null
+          winning_score: number | null
         }
         Insert: {
           ad_library_id?: string | null
@@ -186,6 +187,7 @@ export type Database = {
           updated_at?: string
           visual_hook_score?: number | null
           white_url?: string | null
+          winning_score?: number | null
         }
         Update: {
           ad_library_id?: string | null
@@ -220,6 +222,7 @@ export type Database = {
           updated_at?: string
           visual_hook_score?: number | null
           white_url?: string | null
+          winning_score?: number | null
         }
         Relationships: [
           {
@@ -1410,9 +1413,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      mv_dashboard_stats: {
+        Row: {
+          avg_longevity_days: number | null
+          avg_suspicion_score: number | null
+          champion_ads: number | null
+          high_risk_ads: number | null
+          last_ad_created: string | null
+          promising_ads: number | null
+          strong_ads: number | null
+          tenant_id: string | null
+          testing_ads: number | null
+          total_ads: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      get_dashboard_stats: {
+        Args: never
+        Returns: {
+          avg_longevity_days: number
+          avg_suspicion_score: number
+          champion_ads: number
+          high_risk_ads: number
+          last_ad_created: string
+          promising_ads: number
+          strong_ads: number
+          testing_ads: number
+          total_ads: number
+        }[]
+      }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -1431,6 +1470,7 @@ export type Database = {
         }
         Returns: string
       }
+      refresh_dashboard_stats: { Args: never; Returns: undefined }
       validate_tenant_access: { Args: { _tenant_id: string }; Returns: boolean }
     }
     Enums: {
