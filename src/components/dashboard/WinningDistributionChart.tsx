@@ -1,15 +1,20 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import { useWinningDistribution } from "@/hooks/useDashboardStats";
+import { useDashboardData } from "@/contexts/DashboardContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { memo } from "react";
 
-export function WinningDistributionChart() {
-  const { data, isLoading } = useWinningDistribution();
+// Memoized to prevent unnecessary re-renders
+export const WinningDistributionChart = memo(function WinningDistributionChart() {
+  const { data, isLoading } = useDashboardData();
+  
+  // Use data from context instead of separate query
+  const chartData = data?.winningDistribution;
 
   if (isLoading) {
     return <Skeleton className="h-[200px] w-full" />;
   }
 
-  if (!data || data.every(d => d.value === 0)) {
+  if (!chartData || chartData.every(d => d.value === 0)) {
     return (
       <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
         No data available
@@ -21,7 +26,7 @@ export function WinningDistributionChart() {
     <ResponsiveContainer width="100%" height={200}>
       <PieChart>
         <Pie
-          data={data}
+          data={chartData}
           cx="50%"
           cy="50%"
           innerRadius={50}
@@ -30,7 +35,7 @@ export function WinningDistributionChart() {
           dataKey="value"
           nameKey="name"
         >
-          {data.map((entry, index) => (
+          {chartData.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={entry.fill} />
           ))}
         </Pie>
@@ -52,4 +57,4 @@ export function WinningDistributionChart() {
       </PieChart>
     </ResponsiveContainer>
   );
-}
+});

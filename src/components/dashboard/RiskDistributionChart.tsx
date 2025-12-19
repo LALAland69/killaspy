@@ -1,9 +1,14 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { useRiskDistribution } from "@/hooks/useDashboardStats";
+import { useDashboardData } from "@/contexts/DashboardContext";
 import { Loader2 } from "lucide-react";
+import { memo } from "react";
 
-export function RiskDistributionChart() {
-  const { data, isLoading } = useRiskDistribution();
+// Memoized to prevent unnecessary re-renders
+export const RiskDistributionChart = memo(function RiskDistributionChart() {
+  const { data, isLoading } = useDashboardData();
+  
+  // Use data from context instead of separate query
+  const chartData = data?.riskDistribution;
 
   if (isLoading) {
     return (
@@ -13,7 +18,7 @@ export function RiskDistributionChart() {
     );
   }
 
-  if (!data || data.every(d => d.value === 0)) {
+  if (!chartData || chartData.every(d => d.value === 0)) {
     return (
       <div className="flex h-[200px] items-center justify-center">
         <p className="text-sm text-muted-foreground">No data available</p>
@@ -26,7 +31,7 @@ export function RiskDistributionChart() {
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={data}
+            data={chartData}
             cx="50%"
             cy="50%"
             innerRadius={50}
@@ -34,7 +39,7 @@ export function RiskDistributionChart() {
             paddingAngle={2}
             dataKey="value"
           >
-            {data.map((entry, index) => (
+            {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.fill} />
             ))}
           </Pie>
@@ -49,7 +54,7 @@ export function RiskDistributionChart() {
         </PieChart>
       </ResponsiveContainer>
       <div className="flex justify-center gap-4 mt-2">
-        {data.map((entry, index) => (
+        {chartData.map((entry, index) => (
           <div key={index} className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full" style={{ backgroundColor: entry.fill }} />
             <span className="text-xs text-muted-foreground">{entry.name} ({entry.value})</span>
@@ -58,4 +63,4 @@ export function RiskDistributionChart() {
       </div>
     </div>
   );
-}
+});
