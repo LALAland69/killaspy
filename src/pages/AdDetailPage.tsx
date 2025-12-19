@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 import { Separator } from "@/components/ui/separator";
 import { 
   ArrowLeft, 
@@ -123,10 +124,13 @@ export default function AdDetailPage() {
               <CardContent className="p-0">
                 <div className="relative aspect-video bg-secondary rounded-t-lg overflow-hidden">
                   {ad.media_url ? (
-                    <img 
-                      src={ad.media_url} 
-                      alt="Ad preview" 
-                      className="w-full h-full object-contain"
+                    <OptimizedImage
+                      src={ad.media_url}
+                      alt="Ad preview"
+                      containerClassName="w-full h-full"
+                      objectFit="contain"
+                      priority={true}
+                      placeholder="blur"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">

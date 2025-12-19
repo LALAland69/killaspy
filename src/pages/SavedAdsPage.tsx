@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 import { 
   Heart, 
   Loader2, 
@@ -159,11 +160,12 @@ function SavedAdCard({ ad, savedAt }: { ad: any; savedAt: string }) {
           onClick={() => navigate(`/ads/${ad.id}`)}
         >
           {ad.media_url ? (
-            <img 
-              src={ad.media_url} 
-              alt="Ad preview" 
-              className="w-full h-full object-cover"
-              loading="lazy"
+            <OptimizedImage
+              src={ad.media_url}
+              alt="Ad preview"
+              containerClassName="w-full h-full"
+              objectFit="cover"
+              placeholder="blur"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

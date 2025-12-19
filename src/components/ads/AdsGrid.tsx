@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
 import { WinningScoreBadge } from "@/components/ads/WinningScoreBadge";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 import {
   ExternalLink,
   Play,
@@ -494,11 +495,12 @@ const AdCard = ({ ad, isSelected, onToggleSelect }: AdCardProps) => {
           onClick={handleDetailsClick}
         >
           {ad.media_url ? (
-            <img
+            <OptimizedImage
               src={ad.media_url}
               alt="Ad preview"
-              className="w-full h-full object-cover"
-              loading="lazy"
+              containerClassName="w-full h-full"
+              objectFit="cover"
+              placeholder="blur"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

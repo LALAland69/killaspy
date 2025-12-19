@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 import { 
   Copy, 
   ChevronDown, 
@@ -251,13 +252,13 @@ export function AdVariationsPanel() {
                                           .map(ad => (
                                             <div key={ad.id} className="relative aspect-video rounded-lg overflow-hidden border bg-muted">
                                               {ad.media_url ? (
-                                                <img 
-                                                  src={ad.media_url} 
+                                                <OptimizedImage
+                                                  src={ad.media_url}
                                                   alt="Ad creative"
-                                                  className="w-full h-full object-cover"
-                                                  onError={(e) => {
-                                                    e.currentTarget.src = '/placeholder.svg';
-                                                  }}
+                                                  containerClassName="w-full h-full"
+                                                  objectFit="cover"
+                                                  placeholder="skeleton"
+                                                  fallbackSrc="/placeholder.svg"
                                                 />
                                               ) : (
                                                 <div className="w-full h-full flex items-center justify-center">
