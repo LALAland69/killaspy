@@ -171,30 +171,114 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     // Performance optimizations
+    target: 'esnext',
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Split vendor chunks for better caching
-          "vendor-react": ["react", "react-dom"],
-          "vendor-router": ["react-router-dom"],
-          "vendor-query": ["@tanstack/react-query"],
-          "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-tabs"],
-          "vendor-charts": ["recharts"],
-          "vendor-supabase": ["@supabase/supabase-js"]
-        }
+        manualChunks: (id) => {
+          // Vendor chunks for better caching
+          if (id.includes('node_modules')) {
+            // React core
+            if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
+              return 'vendor-react';
+            }
+            // Router
+            if (id.includes('react-router')) {
+              return 'vendor-router';
+            }
+            // Query
+            if (id.includes('@tanstack/react-query')) {
+              return 'vendor-query';
+            }
+            // Charts - Large bundle
+            if (id.includes('recharts') || id.includes('d3-')) {
+              return 'vendor-charts';
+            }
+            // Supabase
+            if (id.includes('@supabase')) {
+              return 'vendor-supabase';
+            }
+            // Radix UI components
+            if (id.includes('@radix-ui')) {
+              return 'vendor-radix';
+            }
+            // Forms
+            if (id.includes('react-hook-form') || id.includes('zod') || id.includes('@hookform')) {
+              return 'vendor-forms';
+            }
+            // Date utilities
+            if (id.includes('date-fns')) {
+              return 'vendor-date';
+            }
+            // Virtual list
+            if (id.includes('@tanstack/react-virtual')) {
+              return 'vendor-virtual';
+            }
+            // PDF generation
+            if (id.includes('jspdf')) {
+              return 'vendor-pdf';
+            }
+            // Other vendor code
+            return 'vendor-misc';
+          }
+          // App code splitting by feature
+          if (id.includes('/components/ads/')) {
+            return 'feature-ads';
+          }
+          if (id.includes('/components/dashboard/')) {
+            return 'feature-dashboard';
+          }
+          if (id.includes('/components/audit/')) {
+            return 'feature-audit';
+          }
+          if (id.includes('/components/intelligence/')) {
+            return 'feature-intelligence';
+          }
+        },
+        // Asset file naming for better caching
+        assetFileNames: (assetInfo) => {
+          const info = assetInfo.name?.split('.') || [];
+          const ext = info[info.length - 1];
+          if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(ext)) {
+            return `assets/images/[name]-[hash][extname]`;
+          }
+          if (/woff2?|ttf|otf|eot/i.test(ext)) {
+            return `assets/fonts/[name]-[hash][extname]`;
+          }
+          return `assets/[name]-[hash][extname]`;
+        },
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
       }
     },
     // Optimize chunk size
     chunkSizeWarningLimit: 500,
-    // Enable source maps for production debugging
+    // Disable source maps in production for smaller bundles
     sourcemap: false,
-    // Minification
-    minify: "terser",
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
-    }
-  }
+    // Use esbuild for faster minification
+    minify: 'esbuild',
+    // CSS code splitting
+    cssCodeSplit: true,
+    // Inline assets smaller than 4kb
+    assetsInlineLimit: 4096,
+    // Report compressed size
+    reportCompressedSize: true,
+  },
+  // Optimize deps
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@tanstack/react-query',
+      '@supabase/supabase-js',
+    ],
+    exclude: ['@vitest/coverage-v8'],
+  },
+  // Experimental features for performance
+  esbuild: {
+    // Remove console.log in production
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+    // Legal comments
+    legalComments: 'none',
+  },
 }));
