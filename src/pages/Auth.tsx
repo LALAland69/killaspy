@@ -1,17 +1,36 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Database, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Database, Eye, EyeOff, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
 import { z } from "zod";
+import {
+  checkRateLimit,
+  checkPasswordStrength,
+  securityCheck,
+  logSecurityEvent,
+} from "@/lib/security";
 
+// SECURITY: Enhanced auth schema with stricter validation
 const authSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  fullName: z.string().optional(),
+  email: z
+    .string()
+    .email("Please enter a valid email address")
+    .max(255, "Email too long")
+    .transform((val) => val.toLowerCase().trim()),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password too long"),
+  fullName: z
+    .string()
+    .max(100, "Name too long")
+    .optional()
+    .transform((val) => val?.trim()),
 });
 
 export default function Auth() {
@@ -21,20 +40,56 @@ export default function Auth() {
   const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; security?: string }>({});
+  const [passwordStrength, setPasswordStrength] = useState<{ score: number; feedback: string[] }>({ score: 0, feedback: [] });
+  const [loginAttempts, setLoginAttempts] = useState(0);
   
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // SECURITY: Rate limiting for auth attempts
+  const checkAuthRateLimit = useCallback(() => {
+    const rateLimitKey = `auth_${email.toLowerCase()}`;
+    const result = checkRateLimit(rateLimitKey, 5, 300000); // 5 attempts per 5 minutes
+    
+    if (!result.allowed) {
+      logSecurityEvent({
+        type: "RATE_LIMIT",
+        details: { email, endpoint: "auth" },
+      });
+      return { allowed: false, retryIn: Math.ceil(result.resetIn / 1000) };
+    }
+    return { allowed: true };
+  }, [email]);
+
+  // SECURITY: Input validation with security checks
   const validateForm = () => {
+    const fieldErrors: typeof errors = {};
+    
+    // SECURITY: Check for injection attempts
+    const emailCheck = securityCheck(email);
+    const passwordCheck = securityCheck(password);
+    const nameCheck = fullName ? securityCheck(fullName) : { isSafe: true, threats: [] };
+    
+    if (!emailCheck.isSafe || !passwordCheck.isSafe || !nameCheck.isSafe) {
+      const threats = [...emailCheck.threats, ...passwordCheck.threats, ...nameCheck.threats];
+      logSecurityEvent({
+        type: "SUSPICIOUS",
+        input: email,
+        details: { threats, endpoint: "auth" },
+      });
+      fieldErrors.security = "Invalid input detected";
+      setErrors(fieldErrors);
+      return false;
+    }
+    
     try {
       authSchema.parse({ email, password, fullName });
       setErrors({});
       return true;
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const fieldErrors: { email?: string; password?: string } = {};
         error.errors.forEach((err) => {
           if (err.path[0] === "email") fieldErrors.email = err.message;
           if (err.path[0] === "password") fieldErrors.password = err.message;
@@ -45,31 +100,64 @@ export default function Auth() {
     }
   };
 
+  // SECURITY: Handle password change with strength check
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (!isLogin && value.length > 0) {
+      setPasswordStrength(checkPasswordStrength(value));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) return;
     
+    // SECURITY: Check rate limiting before attempting auth
+    const rateLimit = checkAuthRateLimit();
+    if (!rateLimit.allowed) {
+      toast({
+        title: "Too many attempts",
+        description: `Please wait ${rateLimit.retryIn} seconds before trying again.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // SECURITY: Password strength check for signup
+    if (!isLogin && passwordStrength.score < 2) {
+      toast({
+        title: "Weak password",
+        description: "Please use a stronger password.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
       if (isLogin) {
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(email.toLowerCase().trim(), password);
         if (error) {
-          if (error.message.includes("Invalid login credentials")) {
-            toast({
-              title: "Login failed",
-              description: "Invalid email or password. Please try again.",
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "Login failed",
-              description: error.message,
-              variant: "destructive",
+          setLoginAttempts((prev) => prev + 1);
+          
+          // SECURITY: Log failed login attempts
+          if (loginAttempts >= 3) {
+            logSecurityEvent({
+              type: "AUTH_FAILURE",
+              details: { email, attempts: loginAttempts + 1 },
             });
           }
+          
+          // SECURITY: Generic error message to prevent enumeration
+          toast({
+            title: "Login failed",
+            description: "Invalid email or password. Please try again.",
+            variant: "destructive",
+          });
         } else {
+          setLoginAttempts(0);
           toast({
             title: "Welcome back",
             description: "You have successfully logged in.",
@@ -77,21 +165,14 @@ export default function Auth() {
           navigate("/");
         }
       } else {
-        const { error } = await signUp(email, password, fullName);
+        const { error } = await signUp(email.toLowerCase().trim(), password, fullName?.trim());
         if (error) {
-          if (error.message.includes("already registered")) {
-            toast({
-              title: "Account exists",
-              description: "This email is already registered. Please sign in instead.",
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "Sign up failed",
-              description: error.message,
-              variant: "destructive",
-            });
-          }
+          // SECURITY: Generic error to prevent email enumeration
+          toast({
+            title: "Sign up failed",
+            description: "Could not create account. Please try again.",
+            variant: "destructive",
+          });
         } else {
           toast({
             title: "Account created",
@@ -179,10 +260,11 @@ export default function Auth() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
                   placeholder="••••••••"
                   className="bg-secondary/50 pr-10"
                   required
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                 />
                 <button
                   type="button"
@@ -195,7 +277,30 @@ export default function Auth() {
               {errors.password && (
                 <p className="text-xs text-destructive">{errors.password}</p>
               )}
+              {/* SECURITY: Password strength indicator for signup */}
+              {!isLogin && password.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Progress value={passwordStrength.score * 25} className="h-1.5" />
+                    <span className="text-xs text-muted-foreground">
+                      {passwordStrength.score <= 1 ? "Weak" : passwordStrength.score <= 2 ? "Fair" : passwordStrength.score <= 3 ? "Good" : "Strong"}
+                    </span>
+                    {passwordStrength.score >= 3 ? (
+                      <ShieldCheck className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <ShieldAlert className="h-3 w-3 text-yellow-500" />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {errors.security && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <ShieldAlert className="h-3 w-3" />
+                {errors.security}
+              </p>
+            )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
