@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,8 +31,13 @@ interface AdsGridProps {
   onSelectionChange?: (ads: Ad[]) => void;
 }
 
+// PERFORMANCE: Constantes para virtualização
+const CARD_HEIGHT = 480; // Altura estimada de cada card
+const OVERSCAN = 3; // Quantas linhas extras renderizar fora do viewport
+
 export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const parentRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteAds(
@@ -48,39 +54,7 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
         : undefined
     );
 
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-
-  // Infinite scroll observer
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [entry] = entries;
-      if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
-      }
-    },
-    [fetchNextPage, hasNextPage, isFetchingNextPage]
-  );
-
-  useEffect(() => {
-    observerRef.current = new IntersectionObserver(handleObserver, {
-      root: null,
-      rootMargin: "100px",
-      threshold: 0.1,
-    });
-
-    if (loadMoreRef.current) {
-      observerRef.current.observe(loadMoreRef.current);
-    }
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [handleObserver]);
-
-  // REFATORAÇÃO: Memoização para evitar recálculo a cada render
+  // PERFORMANCE: Memoização para evitar recálculo a cada render
   const allAds = useMemo(
     () => data?.pages.flatMap((page) => page.ads) ?? [],
     [data?.pages]
@@ -88,12 +62,64 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
 
   const totalCount = data?.pages[0]?.totalCount ?? 0;
 
-  // REFATORAÇÃO: Referência estável para callback
+  // PERFORMANCE: Calcula número de colunas baseado na largura do container
+  const [columns, setColumns] = useState(4);
+  
+  useEffect(() => {
+    const updateColumns = () => {
+      const width = parentRef.current?.offsetWidth || window.innerWidth;
+      if (width < 768) setColumns(1);
+      else if (width < 1024) setColumns(2);
+      else if (width < 1280) setColumns(3);
+      else setColumns(4);
+    };
+    
+    updateColumns();
+    window.addEventListener("resize", updateColumns);
+    return () => window.removeEventListener("resize", updateColumns);
+  }, []);
+
+  // PERFORMANCE: Agrupa ads em linhas para virtualização
+  const rows = useMemo(() => {
+    const result: Ad[][] = [];
+    for (let i = 0; i < allAds.length; i += columns) {
+      result.push(allAds.slice(i, i + columns));
+    }
+    return result;
+  }, [allAds, columns]);
+
+  // PERFORMANCE: Virtualizer para renderizar apenas linhas visíveis
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => CARD_HEIGHT,
+    overscan: OVERSCAN,
+  });
+
+  // PERFORMANCE: Carrega mais quando próximo do final
+  useEffect(() => {
+    const lastItem = rowVirtualizer.getVirtualItems().at(-1);
+    if (!lastItem) return;
+
+    if (
+      lastItem.index >= rows.length - 2 &&
+      hasNextPage &&
+      !isFetchingNextPage
+    ) {
+      fetchNextPage();
+    }
+  }, [
+    rowVirtualizer.getVirtualItems(),
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    rows.length,
+  ]);
+
+  // Referência estável para callback
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
 
-  // REFATORAÇÃO: Dependência apenas em selectedIds (Set serializado)
-  // Evita loop infinito ao usar allAds como dependência
   const selectedIdsArray = useMemo(
     () => Array.from(selectedIds),
     [selectedIds]
@@ -106,7 +132,6 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
     } else if (onSelectionChangeRef.current && selectedIdsArray.length === 0) {
       onSelectionChangeRef.current([]);
     }
-    // REFATORAÇÃO: Removido allAds das dependências para evitar loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdsArray]);
 
@@ -150,6 +175,8 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
     );
   }
 
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -160,6 +187,10 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
               ({selectedIds.size} selecionados)
             </span>
           )}
+          {/* PERFORMANCE: Indicador de virtualização */}
+          <span className="ml-2 text-xs text-muted-foreground/60">
+            ({virtualItems.length * columns} renderizados)
+          </span>
         </p>
         {selectedIds.size > 0 && (
           <Button variant="ghost" size="sm" onClick={clearSelection}>
@@ -168,26 +199,68 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {allAds.map((ad) => (
-          <AdCard
-            key={ad.id}
-            ad={ad}
-            isSelected={selectedIds.has(ad.id)}
-            onToggleSelect={() => toggleSelect(ad.id)}
-          />
-        ))}
+      {/* PERFORMANCE: Container com scroll virtual */}
+      <div
+        ref={parentRef}
+        className="h-[calc(100vh-300px)] overflow-auto rounded-lg"
+        style={{ contain: "strict" }}
+      >
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualItems.map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            return (
+              <div
+                key={virtualRow.key}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <div
+                  className={cn(
+                    "grid gap-4 pr-2",
+                    columns === 1 && "grid-cols-1",
+                    columns === 2 && "grid-cols-2",
+                    columns === 3 && "grid-cols-3",
+                    columns === 4 && "grid-cols-4"
+                  )}
+                >
+                  {row.map((ad) => (
+                    <AdCard
+                      key={ad.id}
+                      ad={ad}
+                      isSelected={selectedIds.has(ad.id)}
+                      onToggleSelect={() => toggleSelect(ad.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Infinite scroll trigger */}
-      <div ref={loadMoreRef} className="flex justify-center py-4">
-        {isFetchingNextPage && (
+      {/* Loading indicator */}
+      {isFetchingNextPage && (
+        <div className="flex justify-center py-4">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        )}
-        {!hasNextPage && allAds.length > 0 && (
-          <p className="text-sm text-muted-foreground">Fim dos resultados</p>
-        )}
-      </div>
+        </div>
+      )}
+      {!hasNextPage && allAds.length > 0 && (
+        <p className="text-center text-sm text-muted-foreground py-4">
+          Fim dos resultados
+        </p>
+      )}
     </div>
   );
 }
@@ -198,17 +271,17 @@ interface AdCardProps {
   onToggleSelect?: () => void;
 }
 
-// REFATORAÇÃO: Componente memoizado para evitar re-renders desnecessários
+// PERFORMANCE: Componente memoizado para evitar re-renders desnecessários
 const AdCard = ({ ad, isSelected, onToggleSelect }: AdCardProps) => {
   const navigate = useNavigate();
   const { toggleSave, isSaved, isPending } = useToggleSaveAd();
   const startDate = ad.start_date ? new Date(ad.start_date) : null;
   const saved = isSaved(ad.id);
 
-  // REFATORAÇÃO: Memoização do winning score
+  // Memoização do winning score
   const winningScore = useMemo(() => calculateWinningScore(ad), [ad]);
 
-  // REFATORAÇÃO: Handlers memoizados
+  // Handlers memoizados
   const handleSaveClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -235,13 +308,13 @@ const AdCard = ({ ad, isSelected, onToggleSelect }: AdCardProps) => {
   return (
     <Card
       className={cn(
-        "overflow-hidden hover:border-primary/30 transition-colors group",
+        "overflow-hidden hover:border-primary/30 transition-colors group h-full",
         isSelected && "border-primary ring-1 ring-primary"
       )}
     >
-      <CardContent className="p-0">
+      <CardContent className="p-0 flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-3 flex-1">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               {onToggleSelect && (
