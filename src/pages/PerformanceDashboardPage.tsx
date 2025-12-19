@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePerformanceMonitor } from "@/hooks/usePerformanceMonitor";
 import { useDashboardRealtime } from "@/hooks/useRealtimeSubscription";
-import { getAllQueryStats } from "@/lib/queryClient";
+import { WebVitalsWidget } from "@/components/performance/WebVitalsWidget";
+import { WebVitalsChart } from "@/components/performance/WebVitalsChart";
 import { 
   Activity, 
   Cpu, 
@@ -20,6 +22,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Wifi,
+  BarChart3,
 } from "lucide-react";
 import {
   LineChart,
@@ -95,7 +98,7 @@ export default function PerformanceDashboardPage() {
               Performance Dashboard
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Sistema de monitoramento em tempo real
+              Monitoramento de Web Vitals e performance em tempo real
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -110,7 +113,30 @@ export default function PerformanceDashboardPage() {
           </div>
         </div>
 
-        {/* Health Score Card */}
+        {/* Tabs for different views */}
+        <Tabs defaultValue="vitals" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="vitals" className="gap-2">
+              <Gauge className="h-4 w-4" />
+              Web Vitals
+            </TabsTrigger>
+            <TabsTrigger value="system" className="gap-2">
+              <Cpu className="h-4 w-4" />
+              Sistema
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Histórico
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Web Vitals Tab */}
+          <TabsContent value="vitals" className="space-y-6">
+            <WebVitalsWidget />
+          </TabsContent>
+
+          {/* System Tab */}
+          <TabsContent value="system" className="space-y-6">
         <Card className="border-border/50 bg-card">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -360,6 +386,17 @@ export default function PerformanceDashboardPage() {
             </CardContent>
           </Card>
         </div>
+          </TabsContent>
+
+          {/* History Tab */}
+          <TabsContent value="history" className="space-y-6">
+            <WebVitalsChart showAll />
+            <div className="grid gap-4 md:grid-cols-2">
+              <WebVitalsChart metric="lcp" />
+              <WebVitalsChart metric="cls" />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
