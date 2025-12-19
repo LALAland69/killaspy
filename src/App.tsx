@@ -2,12 +2,13 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { logger } from "@/lib/logger";
+import { optimizedQueryClient } from "@/lib/queryClient";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AdsPage from "./pages/AdsPage";
@@ -27,12 +28,11 @@ import SecurityAuditsPage from "./pages/SecurityAuditsPage";
 import AuditDetailPage from "./pages/AuditDetailPage";
 import LogsPage from "./pages/LogsPage";
 import HealthCheckPage from "./pages/HealthCheckPage";
+import PerformanceDashboardPage from "./pages/PerformanceDashboardPage";
 import NotFound from "./pages/NotFound";
 import SalesPage from "./pages/SalesPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
-
-const queryClient = new QueryClient();
 
 // Navigation logger component
 function NavigationLogger() {
@@ -58,7 +58,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <QueryClientProvider client={optimizedQueryClient}>
     <AuthProvider>
       <LanguageProvider>
         <TooltipProvider>
@@ -161,6 +161,11 @@ const App = () => (
                 <Route path="/health" element={
                   <ProtectedRoute>
                     <HealthCheckPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/performance" element={
+                  <ProtectedRoute>
+                    <PerformanceDashboardPage />
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />
