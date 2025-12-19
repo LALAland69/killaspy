@@ -154,11 +154,17 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 animate-fade-in">
         <Skeleton className="h-5 w-48" />
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <AdCardSkeleton key={i} />
+            <div
+              key={i}
+              className="opacity-0 animate-fade-in-up"
+              style={{ animationDelay: `${i * 50}ms`, animationFillMode: "forwards" }}
+            >
+              <AdCardSkeleton />
+            </div>
           ))}
         </div>
       </div>
@@ -167,7 +173,7 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
 
   if (allAds.length === 0) {
     return (
-      <div className="flex h-48 flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-card">
+      <div className="flex h-48 flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-card animate-scale-fade-in">
         <p className="text-sm text-muted-foreground">
           Nenhum anúncio encontrado.
         </p>
@@ -184,8 +190,8 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex items-center justify-between animate-fade-in-up">
         <p className="text-sm text-muted-foreground">
           Mostrando {allAds.length} de {totalCount} ads
           {selectedIds.size > 0 && (
@@ -241,13 +247,21 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
                     columns === 4 && "grid-cols-4"
                   )}
                 >
-                  {row.map((ad) => (
-                    <AdCard
+                  {row.map((ad, colIndex) => (
+                    <div
                       key={ad.id}
-                      ad={ad}
-                      isSelected={selectedIds.has(ad.id)}
-                      onToggleSelect={() => toggleSelect(ad.id)}
-                    />
+                      className="opacity-0 animate-scale-fade-in"
+                      style={{
+                        animationDelay: `${colIndex * 30}ms`,
+                        animationFillMode: "forwards",
+                      }}
+                    >
+                      <AdCard
+                        ad={ad}
+                        isSelected={selectedIds.has(ad.id)}
+                        onToggleSelect={() => toggleSelect(ad.id)}
+                      />
+                    </div>
                   ))}
                 </div>
               </div>
