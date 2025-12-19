@@ -41,6 +41,7 @@ const SalesPage = lazy(() => import("./pages/SalesPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
 const InstallPage = lazy(() => import("./pages/InstallPage"));
+const PWATestPage = lazy(() => import("./pages/PWATestPage"));
 
 // Navigation logger component
 function NavigationLogger() {
@@ -103,6 +104,7 @@ const App = () => (
                 <Route path="/privacidade" element={<LazyRoute><PrivacyPage /></LazyRoute>} />
                 <Route path="/termos" element={<LazyRoute><TermsPage /></LazyRoute>} />
                 <Route path="/install" element={<LazyRoute><InstallPage /></LazyRoute>} />
+                <Route path="/pwa-test" element={<LazyRoute><PWATestPage /></LazyRoute>} />
                 <Route path="/auth" element={<Auth />} />
                 
                 {/* Protected pages with lazy loading */}
