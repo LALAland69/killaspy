@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,30 +9,35 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { logger } from "@/lib/logger";
 import { optimizedQueryClient } from "@/lib/queryClient";
-import Index from "./pages/Index";
+import { PageLoadingFallback } from "@/components/ui/loading-spinner";
+
+// Eager load critical pages
 import Auth from "./pages/Auth";
-import AdsPage from "./pages/AdsPage";
-import AdDetailPage from "./pages/AdDetailPage";
-import SavedAdsPage from "./pages/SavedAdsPage";
-import AdvertisersPage from "./pages/AdvertisersPage";
-import AdvertiserProfilePage from "./pages/AdvertiserProfilePage";
-import DomainsPage from "./pages/DomainsPage";
-import DomainProfilePage from "./pages/DomainProfilePage";
-import DivergencePage from "./pages/DivergencePage";
-import TrendsPage from "./pages/TrendsPage";
-import JobHistoryPage from "./pages/JobHistoryPage";
-import AdImportPage from "./pages/AdImportPage";
-import IntelligencePage from "./pages/IntelligencePage";
-import AlertsPage from "./pages/AlertsPage";
-import SecurityAuditsPage from "./pages/SecurityAuditsPage";
-import AuditDetailPage from "./pages/AuditDetailPage";
-import LogsPage from "./pages/LogsPage";
-import HealthCheckPage from "./pages/HealthCheckPage";
-import PerformanceDashboardPage from "./pages/PerformanceDashboardPage";
 import NotFound from "./pages/NotFound";
-import SalesPage from "./pages/SalesPage";
-import PrivacyPage from "./pages/PrivacyPage";
-import TermsPage from "./pages/TermsPage";
+
+// Lazy load all other pages for code splitting
+const Index = lazy(() => import("./pages/Index"));
+const AdsPage = lazy(() => import("./pages/AdsPage"));
+const AdDetailPage = lazy(() => import("./pages/AdDetailPage"));
+const SavedAdsPage = lazy(() => import("./pages/SavedAdsPage"));
+const AdvertisersPage = lazy(() => import("./pages/AdvertisersPage"));
+const AdvertiserProfilePage = lazy(() => import("./pages/AdvertiserProfilePage"));
+const DomainsPage = lazy(() => import("./pages/DomainsPage"));
+const DomainProfilePage = lazy(() => import("./pages/DomainProfilePage"));
+const DivergencePage = lazy(() => import("./pages/DivergencePage"));
+const TrendsPage = lazy(() => import("./pages/TrendsPage"));
+const JobHistoryPage = lazy(() => import("./pages/JobHistoryPage"));
+const AdImportPage = lazy(() => import("./pages/AdImportPage"));
+const IntelligencePage = lazy(() => import("./pages/IntelligencePage"));
+const AlertsPage = lazy(() => import("./pages/AlertsPage"));
+const SecurityAuditsPage = lazy(() => import("./pages/SecurityAuditsPage"));
+const AuditDetailPage = lazy(() => import("./pages/AuditDetailPage"));
+const LogsPage = lazy(() => import("./pages/LogsPage"));
+const HealthCheckPage = lazy(() => import("./pages/HealthCheckPage"));
+const PerformanceDashboardPage = lazy(() => import("./pages/PerformanceDashboardPage"));
+const SalesPage = lazy(() => import("./pages/SalesPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
 
 // Navigation logger component
 function NavigationLogger() {
@@ -57,6 +62,26 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Wrapper for lazy loaded protected routes
+function LazyProtectedRoute({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <Suspense fallback={<PageLoadingFallback />}>
+        {children}
+      </Suspense>
+    </ProtectedRoute>
+  );
+}
+
+// Wrapper for lazy loaded public routes
+function LazyRoute({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<PageLoadingFallback />}>
+      {children}
+    </Suspense>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={optimizedQueryClient}>
     <AuthProvider>
@@ -69,105 +94,32 @@ const App = () => (
               <NavigationLogger />
               <Routes>
                 {/* Public pages */}
-                <Route path="/pagina-de-vendas" element={<SalesPage />} />
-                <Route path="/privacidade" element={<PrivacyPage />} />
-                <Route path="/termos" element={<TermsPage />} />
+                <Route path="/pagina-de-vendas" element={<LazyRoute><SalesPage /></LazyRoute>} />
+                <Route path="/privacidade" element={<LazyRoute><PrivacyPage /></LazyRoute>} />
+                <Route path="/termos" element={<LazyRoute><TermsPage /></LazyRoute>} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/" element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                } />
-                <Route path="/ads" element={
-                  <ProtectedRoute>
-                    <AdsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/ads/:id" element={
-                  <ProtectedRoute>
-                    <AdDetailPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/saved-ads" element={
-                  <ProtectedRoute>
-                    <SavedAdsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/advertisers" element={
-                  <ProtectedRoute>
-                    <AdvertisersPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/advertisers/:id" element={
-                  <ProtectedRoute>
-                    <AdvertiserProfilePage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/domains" element={
-                  <ProtectedRoute>
-                    <DomainsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/domains/:id" element={
-                  <ProtectedRoute>
-                    <DomainProfilePage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/divergence" element={
-                  <ProtectedRoute>
-                    <DivergencePage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/trends" element={
-                  <ProtectedRoute>
-                    <TrendsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/jobs" element={
-                  <ProtectedRoute>
-                    <JobHistoryPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/import" element={
-                  <ProtectedRoute>
-                    <AdImportPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/intelligence" element={
-                  <ProtectedRoute>
-                    <IntelligencePage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/alerts" element={
-                  <ProtectedRoute>
-                    <AlertsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/security-audits" element={
-                  <ProtectedRoute>
-                    <SecurityAuditsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/security-audits/:id" element={
-                  <ProtectedRoute>
-                    <AuditDetailPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/logs" element={
-                  <ProtectedRoute>
-                    <LogsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/health" element={
-                  <ProtectedRoute>
-                    <HealthCheckPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/performance" element={
-                  <ProtectedRoute>
-                    <PerformanceDashboardPage />
-                  </ProtectedRoute>
-                } />
+                
+                {/* Protected pages with lazy loading */}
+                <Route path="/" element={<LazyProtectedRoute><Index /></LazyProtectedRoute>} />
+                <Route path="/ads" element={<LazyProtectedRoute><AdsPage /></LazyProtectedRoute>} />
+                <Route path="/ads/:id" element={<LazyProtectedRoute><AdDetailPage /></LazyProtectedRoute>} />
+                <Route path="/saved-ads" element={<LazyProtectedRoute><SavedAdsPage /></LazyProtectedRoute>} />
+                <Route path="/advertisers" element={<LazyProtectedRoute><AdvertisersPage /></LazyProtectedRoute>} />
+                <Route path="/advertisers/:id" element={<LazyProtectedRoute><AdvertiserProfilePage /></LazyProtectedRoute>} />
+                <Route path="/domains" element={<LazyProtectedRoute><DomainsPage /></LazyProtectedRoute>} />
+                <Route path="/domains/:id" element={<LazyProtectedRoute><DomainProfilePage /></LazyProtectedRoute>} />
+                <Route path="/divergence" element={<LazyProtectedRoute><DivergencePage /></LazyProtectedRoute>} />
+                <Route path="/trends" element={<LazyProtectedRoute><TrendsPage /></LazyProtectedRoute>} />
+                <Route path="/jobs" element={<LazyProtectedRoute><JobHistoryPage /></LazyProtectedRoute>} />
+                <Route path="/import" element={<LazyProtectedRoute><AdImportPage /></LazyProtectedRoute>} />
+                <Route path="/intelligence" element={<LazyProtectedRoute><IntelligencePage /></LazyProtectedRoute>} />
+                <Route path="/alerts" element={<LazyProtectedRoute><AlertsPage /></LazyProtectedRoute>} />
+                <Route path="/security-audits" element={<LazyProtectedRoute><SecurityAuditsPage /></LazyProtectedRoute>} />
+                <Route path="/security-audits/:id" element={<LazyProtectedRoute><AuditDetailPage /></LazyProtectedRoute>} />
+                <Route path="/logs" element={<LazyProtectedRoute><LogsPage /></LazyProtectedRoute>} />
+                <Route path="/health" element={<LazyProtectedRoute><HealthCheckPage /></LazyProtectedRoute>} />
+                <Route path="/performance" element={<LazyProtectedRoute><PerformanceDashboardPage /></LazyProtectedRoute>} />
+                
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AppInitializer>
