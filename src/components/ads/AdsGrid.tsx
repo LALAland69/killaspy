@@ -24,6 +24,7 @@ import { ptBR } from "date-fns/locale";
 import { Link, useNavigate } from "react-router-dom";
 import type { AdsFilters } from "@/pages/Ads";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface AdsGridProps {
   filters?: AdsFilters;
@@ -153,8 +154,13 @@ export function AdsGrid({ filters, onSelectionChange }: AdsGridProps) {
 
   if (isLoading) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-border/50 bg-card">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-4">
+        <Skeleton className="h-5 w-48" />
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <AdCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -270,6 +276,60 @@ interface AdCardProps {
   isSelected?: boolean;
   onToggleSelect?: () => void;
 }
+
+// SKELETON: Componente de loading para cada card
+const AdCardSkeleton = () => (
+  <Card className="overflow-hidden h-full">
+    <CardContent className="p-0 flex flex-col h-full">
+      {/* Header Skeleton */}
+      <div className="p-4 space-y-3 flex-1">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Skeleton className="h-8 w-8 rounded" />
+            <Skeleton className="h-8 w-8 rounded" />
+          </div>
+        </div>
+
+        {/* Stats Skeleton */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-baseline gap-2">
+              <Skeleton className="h-6 w-16" />
+              <Skeleton className="h-5 w-8 rounded" />
+            </div>
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-3/4" />
+        </div>
+
+        {/* Actions Skeleton */}
+        <div className="flex gap-2">
+          <Skeleton className="h-8 flex-1 rounded" />
+        </div>
+        <Skeleton className="h-8 w-full rounded" />
+
+        {/* Preview Text Skeleton */}
+        <div className="flex items-start gap-2 pt-1">
+          <Skeleton className="h-4 w-4 shrink-0" />
+          <div className="space-y-1 flex-1">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+        </div>
+      </div>
+
+      {/* Media Preview Skeleton */}
+      <Skeleton className="aspect-square w-full rounded-none" />
+    </CardContent>
+  </Card>
+);
 
 // PERFORMANCE: Componente memoizado para evitar re-renders desnecessários
 const AdCard = ({ ad, isSelected, onToggleSelect }: AdCardProps) => {
