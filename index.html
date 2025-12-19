@@ -1,26 +1,115 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
-    <title>Lovable App</title>
-    <meta name="description" content="Lovable Generated Project" />
-    <meta name="author" content="Lovable" />
-
-    <!-- TODO: Update og:title to match your application name -->
-    <meta property="og:title" content="Lovable App" />
-    <meta property="og:description" content="Lovable Generated Project" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    
+    <!-- Primary Meta Tags -->
+    <title>KillaSpy - Ad Intelligence Platform</title>
+    <meta name="title" content="KillaSpy - Ad Intelligence Platform" />
+    <meta name="description" content="Plataforma de inteligência competitiva para análise de anúncios e estratégias de marketing digital" />
+    <meta name="author" content="KillaSpy" />
+    <meta name="keywords" content="ad intelligence, marketing, analytics, competitive intelligence, facebook ads, spy tool" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="KillaSpy" />
+    <meta name="application-name" content="KillaSpy" />
+    <meta name="msapplication-TileColor" content="#0f172a" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-
+    <meta property="og:url" content="https://killaspy.com/" />
+    <meta property="og:title" content="KillaSpy - Ad Intelligence Platform" />
+    <meta property="og:description" content="Plataforma de inteligência competitiva para análise de anúncios e estratégias de marketing digital" />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="KillaSpy" />
+    
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:url" content="https://killaspy.com/" />
+    <meta name="twitter:title" content="KillaSpy - Ad Intelligence Platform" />
+    <meta name="twitter:description" content="Plataforma de inteligência competitiva para análise de anúncios e estratégias de marketing digital" />
+    <meta name="twitter:image" content="/og-image.png" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/pwa-icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon-167x167.png" />
+    
+    <!-- iOS Splash Screens -->
+    <link rel="apple-touch-startup-image" href="/splash/apple-splash-2048-2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/apple-splash-1668-2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/apple-splash-1536-2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/apple-splash-1125-2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/apple-splash-1242-2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/apple-splash-828-1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/apple-splash-1170-2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/apple-splash-1284-2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    
+    <!-- Preconnect to important origins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- DNS Prefetch -->
+    <link rel="dns-prefetch" href="https://unucjuxitmawvmvvzxqq.supabase.co" />
+    
+    <!-- Critical CSS inline for faster FCP -->
+    <style>
+      /* Critical CSS - prevent layout shift */
+      *,*::before,*::after{box-sizing:border-box}
+      html{-webkit-text-size-adjust:100%;line-height:1.5}
+      body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#0f172a;color:#f8fafc}
+      #root{min-height:100vh;display:flex;flex-direction:column}
+      
+      /* Loading spinner */
+      .app-loading{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a}
+      .app-loading-spinner{width:48px;height:48px;border:4px solid rgba(255,255,255,0.1);border-left-color:#3b82f6;border-radius:50%;animation:spin 1s linear infinite}
+      @keyframes spin{to{transform:rotate(360deg)}}
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Initial loading state - replaced by React -->
+      <div class="app-loading">
+        <div class="app-loading-spinner"></div>
+      </div>
+    </div>
+    
+    <!-- No-JS fallback -->
+    <noscript>
+      <div style="padding:2rem;text-align:center;background:#1e293b;color:#f8fafc">
+        <h1>JavaScript Necessário</h1>
+        <p>Por favor, habilite o JavaScript para usar o KillaSpy.</p>
+      </div>
+    </noscript>
+    
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Register service worker fallback -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .catch(err => console.log('SW registration failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>

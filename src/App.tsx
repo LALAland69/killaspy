@@ -10,6 +10,8 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { logger } from "@/lib/logger";
 import { optimizedQueryClient } from "@/lib/queryClient";
 import { PageLoadingFallback } from "@/components/ui/loading-spinner";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+import { OfflineIndicator } from "@/hooks/useNetworkStatus";
 
 // Eager load critical pages
 import Auth from "./pages/Auth";
@@ -38,6 +40,7 @@ const PerformanceDashboardPage = lazy(() => import("./pages/PerformanceDashboard
 const SalesPage = lazy(() => import("./pages/SalesPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
+const InstallPage = lazy(() => import("./pages/InstallPage"));
 
 // Navigation logger component
 function NavigationLogger() {
@@ -92,11 +95,14 @@ const App = () => (
           <BrowserRouter>
             <AppInitializer>
               <NavigationLogger />
+              <InstallPrompt showDelay={45000} minPageViews={3} />
+              <OfflineIndicator />
               <Routes>
                 {/* Public pages */}
                 <Route path="/pagina-de-vendas" element={<LazyRoute><SalesPage /></LazyRoute>} />
                 <Route path="/privacidade" element={<LazyRoute><PrivacyPage /></LazyRoute>} />
                 <Route path="/termos" element={<LazyRoute><TermsPage /></LazyRoute>} />
+                <Route path="/install" element={<LazyRoute><InstallPage /></LazyRoute>} />
                 <Route path="/auth" element={<Auth />} />
                 
                 {/* Protected pages with lazy loading */}
