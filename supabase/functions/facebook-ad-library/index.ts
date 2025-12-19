@@ -590,9 +590,20 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error in facebook-ad-library function:', error);
+
+    const message = typeof error?.message === 'string' ? error.message : 'Unknown error';
+    const isTransientFacebookError =
+      message.includes('Facebook API temporary error') ||
+      message.includes('Facebook API is temporarily unavailable') ||
+      message.includes('Please try again in a few minutes');
+
+    // For transient upstream issues we return HTTP 200 so the frontend can show a friendly message
+    // (Supabase invoke marks non-2xx as an error and hides the JSON body).
+    const status = isTransientFacebookError ? 200 : 400;
+
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: message, is_transient: isTransientFacebookError }),
+      { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
