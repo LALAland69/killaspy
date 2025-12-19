@@ -29,83 +29,76 @@ const COUNTRIES = [
 ];
 
 // Enhanced Error Alert Component with better UX
-function ApiErrorAlert({ error, onRetry, isRetrying }: { error: FacebookApiError; onRetry: () => void; isRetrying?: boolean }) {
-  const isTransientError = error.isTransient;
-  
+function ApiErrorAlert({
+  error,
+  onRetry,
+  isRetrying,
+}: {
+  error: FacebookApiError;
+  onRetry: () => void;
+  isRetrying?: boolean;
+}) {
+  const isTransientError = !!error.isTransient;
+
   return (
-    <Alert 
-      variant="default" 
-      className={`mt-4 ${isTransientError 
-        ? "border-amber-500/50 bg-amber-500/10" 
-        : "border-destructive/50 bg-destructive/10"}`}
-    >
-      <AlertCircle className={`h-5 w-5 ${isTransientError ? "text-amber-500" : "text-destructive"}`} />
+    <Alert variant={isTransientError ? "default" : "destructive"} className="mt-4">
+      <AlertCircle className={`h-5 w-5 ${isTransientError ? "text-muted-foreground" : "text-destructive"}`} />
       <AlertTitle className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          {isTransientError ? (
-            <>
-              <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                API do Facebook Temporariamente Instável
-              </span>
-              <Badge variant="outline" className="text-amber-600 border-amber-500/50 text-xs">
-                Erro Temporário
-              </Badge>
-            </>
-          ) : (
-            <span className="text-destructive font-semibold">Erro na API do Facebook</span>
+          <span className={`font-semibold ${isTransientError ? "text-foreground" : "text-destructive"}`}>
+            {isTransientError ? "API do Facebook instável" : "Erro na API do Facebook"}
+          </span>
+          {isTransientError && (
+            <Badge variant="secondary" className="text-xs">
+              Temporário
+            </Badge>
           )}
         </div>
+
         <div className="flex gap-2">
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={onRetry} 
-            disabled={isRetrying}
-            className="h-7"
-          >
+          <Button size="sm" variant="outline" onClick={onRetry} disabled={isRetrying} className="h-7">
             {isRetrying ? (
               <Loader2 className="h-3 w-3 mr-1 animate-spin" />
             ) : (
               <RefreshCw className="h-3 w-3 mr-1" />
             )}
-            Tentar Novamente
+            Tentar novamente
           </Button>
+
           <Button size="sm" variant="ghost" asChild className="h-7">
             <a href="/health">
               <ExternalLink className="h-3 w-3 mr-1" />
-              Ver Status
+              Ver status
             </a>
           </Button>
         </div>
       </AlertTitle>
+
       <AlertDescription className="mt-3 space-y-3">
         {isTransientError ? (
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
-            <div className="p-2 rounded-full bg-amber-500/20">
-              <Clock className="h-4 w-4 text-amber-600" />
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+            <div className="p-2 rounded-full bg-background/60 border border-border">
+              <Clock className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-foreground mb-1">
-                O Facebook está passando por instabilidade
+                O Facebook está retornando erros intermitentes
               </p>
               <p className="text-xs text-muted-foreground">
-                Isso geralmente se resolve em poucos minutos. A importação tentará automaticamente 
-                várias vezes antes de falhar. Você também pode tentar novamente manualmente.
+                Aguarde alguns minutos e tente novamente. O sistema já faz tentativas automáticas com backoff.
               </p>
             </div>
           </div>
         ) : (
           <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
-            <div className="p-2 rounded-full bg-destructive/20">
+            <div className="p-2 rounded-full bg-destructive/10 border border-destructive/20">
               <AlertCircle className="h-4 w-4 text-destructive" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-foreground mb-1">
                 {error.message || "Ocorreu um erro ao conectar com a API do Facebook"}
               </p>
-              {error.suggestion && (
-                <p className="text-xs text-muted-foreground">{error.suggestion}</p>
-              )}
+              {error.suggestion && <p className="text-xs text-muted-foreground">{error.suggestion}</p>}
             </div>
           </div>
         )}
@@ -115,7 +108,7 @@ function ApiErrorAlert({ error, onRetry, isRetrying }: { error: FacebookApiError
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
               Detalhes técnicos
             </summary>
-            <div className="mt-2 p-2 rounded bg-muted/50 border font-mono">
+            <div className="mt-2 p-2 rounded bg-muted/50 border border-border font-mono">
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Facebook Trace ID:</span>
                 <code className="text-foreground select-all">{error.fbtrace_id}</code>
@@ -333,7 +326,11 @@ export function AdLibraryImport() {
 
             {/* Error Display with Details */}
             {apiError && !retryInfo && (
-              <ApiErrorAlert error={apiError} onRetry={handleSearch} isRetrying={isSearching || isImporting} />
+              <ApiErrorAlert
+                error={apiError}
+                onRetry={importError ? handleImport : handleSearch}
+                isRetrying={isSearching || isImporting}
+              />
             )}
 
             {/* Save as Schedule */}
