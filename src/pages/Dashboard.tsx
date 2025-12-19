@@ -10,12 +10,17 @@ import { WinningDistributionChart } from "@/components/dashboard/WinningDistribu
 import { LogsWidget } from "@/components/dashboard/LogsWidget";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Search, Users, Globe, AlertTriangle, Database, Loader2, Trophy, TrendingUp } from "lucide-react";
-import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { Badge } from "@/components/ui/badge";
+import { Search, Users, Globe, AlertTriangle, Database, Loader2, Trophy, TrendingUp, Wifi } from "lucide-react";
+import { useOptimizedDashboard } from "@/hooks/useOptimizedDashboard";
+import { useDashboardRealtime } from "@/hooks/useRealtimeSubscription";
 import { useSeedData } from "@/hooks/useSeedData";
+import { useRenderTime } from "@/hooks/usePerformanceMonitor";
 
 export default function Dashboard() {
-  const { data: stats, isLoading } = useDashboardStats();
+  useRenderTime("Dashboard");
+  const { data, isLoading } = useOptimizedDashboard();
+  const { isSubscribed } = useDashboardRealtime();
   const seedMutation = useSeedData();
 
   return (
@@ -24,7 +29,13 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Ad intelligence overview</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-muted-foreground">Ad intelligence overview</p>
+            <Badge variant={isSubscribed ? "default" : "secondary"} className="gap-1 text-xs">
+              <Wifi className="h-3 w-3" />
+              {isSubscribed ? "Live" : "..."}
+            </Badge>
+          </div>
         </div>
         <Button 
           onClick={() => seedMutation.mutate()} 
@@ -50,35 +61,35 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="Ads Tracked"
-          value={isLoading ? "..." : stats?.totalAds.toLocaleString() || "0"}
+          value={isLoading ? "..." : data?.stats.totalAds.toLocaleString() || "0"}
           change="+847 this week"
           changeType="positive"
           icon={Search}
         />
         <StatCard
           title="Advertisers"
-          value={isLoading ? "..." : stats?.totalAdvertisers.toLocaleString() || "0"}
+          value={isLoading ? "..." : data?.stats.totalAdvertisers.toLocaleString() || "0"}
           change="+56 this week"
           changeType="positive"
           icon={Users}
         />
         <StatCard
           title="Domains"
-          value={isLoading ? "..." : stats?.totalDomains.toLocaleString() || "0"}
+          value={isLoading ? "..." : data?.stats.totalDomains.toLocaleString() || "0"}
           change="+124 this week"
           changeType="positive"
           icon={Globe}
         />
         <StatCard
           title="Winning Ads"
-          value={isLoading ? "..." : stats?.winningStats?.totalWinners.toLocaleString() || "0"}
-          change={`Avg score: ${stats?.winningStats?.avgWinningScore || 0}`}
+          value={isLoading ? "..." : data?.winningStats?.totalWinners.toLocaleString() || "0"}
+          change={`Avg score: ${data?.winningStats?.avgWinningScore || 0}`}
           changeType="positive"
           icon={Trophy}
         />
         <StatCard
           title="High Risk"
-          value={isLoading ? "..." : stats?.highRiskAds.toLocaleString() || "0"}
+          value={isLoading ? "..." : data?.stats.highRiskAds.toLocaleString() || "0"}
           change="+12 today"
           changeType="negative"
           icon={AlertTriangle}
@@ -87,7 +98,7 @@ export default function Dashboard() {
       </div>
 
       {/* Winning Stats Mini Cards */}
-      {stats?.winningStats && (
+      {data?.winningStats && (
         <div className="grid gap-3 grid-cols-4">
           <Card className="border-border/50 bg-yellow-500/10 border-yellow-500/30">
             <CardContent className="p-4 flex items-center gap-3">
@@ -95,7 +106,7 @@ export default function Dashboard() {
                 <Trophy className="h-5 w-5 text-yellow-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-yellow-500">{stats.winningStats.champions}</p>
+                <p className="text-2xl font-bold text-yellow-500">{data.winningStats.champions}</p>
                 <p className="text-xs text-muted-foreground">Champions</p>
               </div>
             </CardContent>
@@ -106,7 +117,7 @@ export default function Dashboard() {
                 <TrendingUp className="h-5 w-5 text-green-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-green-500">{stats.winningStats.strong}</p>
+                <p className="text-2xl font-bold text-green-500">{data.winningStats.strong}</p>
                 <p className="text-xs text-muted-foreground">Strong</p>
               </div>
             </CardContent>
@@ -117,7 +128,7 @@ export default function Dashboard() {
                 <TrendingUp className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-blue-500">{stats.winningStats.promising}</p>
+                <p className="text-2xl font-bold text-blue-500">{data.winningStats.promising}</p>
                 <p className="text-xs text-muted-foreground">Promising</p>
               </div>
             </CardContent>
@@ -128,7 +139,7 @@ export default function Dashboard() {
                 <Search className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.winningStats.testing}</p>
+                <p className="text-2xl font-bold">{data.winningStats.testing}</p>
                 <p className="text-xs text-muted-foreground">Testing</p>
               </div>
             </CardContent>

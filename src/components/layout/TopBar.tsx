@@ -1,4 +1,4 @@
-import { Database, User, LogOut, Bell, Settings, Menu, X, FileText } from "lucide-react";
+import { Database, User, LogOut, Bell, Settings, Menu, X, FileText, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AlertsDropdown } from "@/components/alerts/AlertsDropdown";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
@@ -46,6 +46,7 @@ export function TopBar() {
     { name: t('nav.jobs'), href: "/jobs" },
     { name: t('nav.alerts'), href: "/alerts" },
     { name: t('nav.logs'), href: "/logs" },
+    { name: "Performance", href: "/performance" },
   ];
 
   const allNavigation = [...mainNavigation, ...moreNavigation];
