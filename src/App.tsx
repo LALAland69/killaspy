@@ -12,6 +12,7 @@ import { optimizedQueryClient } from "@/lib/queryClient";
 import { PageLoadingFallback } from "@/components/ui/loading-spinner";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/hooks/useNetworkStatus";
+import { useRoutePrefetching, prefetchCriticalRoutes } from "@/lib/routePrefetch";
 
 // Eager load critical pages
 import Auth from "./pages/Auth";
@@ -43,9 +44,12 @@ const TermsPage = lazy(() => import("./pages/TermsPage"));
 const InstallPage = lazy(() => import("./pages/InstallPage"));
 const PWATestPage = lazy(() => import("./pages/PWATestPage"));
 
-// Navigation logger component
+// Navigation logger component with prefetching
 function NavigationLogger() {
   const location = useLocation();
+  
+  // Enable route prefetching
+  useRoutePrefetching();
   
   useEffect(() => {
     logger.navigate(document.referrer || 'direct', location.pathname);
@@ -54,13 +58,16 @@ function NavigationLogger() {
   return null;
 }
 
-// App initialization
+// App initialization with prefetching
 function AppInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     logger.info('SYSTEM', 'Application initialized', {
       url: window.location.href,
       timestamp: new Date().toISOString()
     });
+    
+    // Prefetch critical routes after initial load
+    prefetchCriticalRoutes();
   }, []);
   
   return <>{children}</>;
