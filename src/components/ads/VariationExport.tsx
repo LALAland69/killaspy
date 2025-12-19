@@ -9,6 +9,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Download, FileText, Table, Loader2 } from "lucide-react";
 import { useAdVariations } from "@/hooks/useAdVariations";
+import { escapeHtml } from "@/lib/security";
 
 export function VariationExport() {
   const { variationGroups, stats } = useAdVariations();
@@ -176,9 +177,9 @@ export function VariationExport() {
   ${variationGroups.map((group) => `
     <div class="group">
       <div class="group-header">
-        <p class="group-title">${group.page_name || 'Unknown Advertiser'}</p>
+        <p class="group-title">${escapeHtml(group.page_name || 'Unknown Advertiser')}</p>
         <div class="group-meta">
-          <span class="badge badge-${group.performance.performanceRank}">${group.performance.performanceRank.toUpperCase()}</span>
+          <span class="badge badge-${escapeHtml(group.performance.performanceRank)}">${escapeHtml(group.performance.performanceRank.toUpperCase())}</span>
           ${group.variationCount} variations • ${group.similarity}% text similarity
           ${group.hasVisualVariations ? ' • Visual variations detected' : ''}
         </div>
@@ -192,13 +193,13 @@ export function VariationExport() {
                 <span class="variation-rank">#${index + 1} ${ad.id === group.performance.bestPerformerId ? '⭐ Best' : ''}</span>
                 <span class="variation-score">Score: ${ad.performanceScore}</span>
               </div>
-              ${ad.headline ? `<div class="variation-headline">${ad.headline}</div>` : ''}
-              ${ad.primary_text ? `<div class="variation-text">${ad.primary_text.substring(0, 150)}${ad.primary_text.length > 150 ? '...' : ''}</div>` : ''}
+              ${ad.headline ? `<div class="variation-headline">${escapeHtml(ad.headline)}</div>` : ''}
+              ${ad.primary_text ? `<div class="variation-text">${escapeHtml(ad.primary_text.substring(0, 150))}${ad.primary_text.length > 150 ? '...' : ''}</div>` : ''}
               <div class="metrics">
                 <span class="metric">Engagement: <span class="metric-value">${ad.engagement_score ?? 'N/A'}</span></span>
                 <span class="metric">Longevity: <span class="metric-value">${ad.longevity_days ?? 'N/A'}d</span></span>
-                <span class="metric">Status: <span class="metric-value">${ad.status || 'N/A'}</span></span>
-                ${ad.cta ? `<span class="metric">CTA: <span class="metric-value">${ad.cta}</span></span>` : ''}
+                <span class="metric">Status: <span class="metric-value">${escapeHtml(ad.status || 'N/A')}</span></span>
+                ${ad.cta ? `<span class="metric">CTA: <span class="metric-value">${escapeHtml(ad.cta)}</span></span>` : ''}
               </div>
             </div>
           `).join('')}
