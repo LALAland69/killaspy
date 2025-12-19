@@ -2,6 +2,7 @@ import { Database, User, LogOut, Bell, Settings, Menu, X, FileText, Gauge } from
 import { Button } from "@/components/ui/button";
 import { AlertsDropdown } from "@/components/alerts/AlertsDropdown";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
+import { PWAStatusIndicator } from "@/components/pwa/PWAStatusIndicator";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -171,6 +172,7 @@ export function TopBar() {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        <PWAStatusIndicator />
         <LanguageSwitcher />
         <AlertsDropdown />
         
