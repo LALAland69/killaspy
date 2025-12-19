@@ -13,6 +13,7 @@ import { Search, Download, Loader2, ExternalLink, X, Plus, Trash2, Clock, Target
 import { useAdLibrarySearch, useAdLibraryImport, FacebookApiError } from "@/hooks/useAdLibraryImport";
 import { useImportSchedules, useCreateSchedule, useToggleSchedule, useDeleteSchedule } from "@/hooks/useImportSchedules";
 import { formatDistanceToNow } from "date-fns";
+import { FacebookApiStatusBadge } from "./FacebookApiStatusBadge";
 
 const COUNTRIES = [
   { code: "US", name: "United States" },
@@ -156,13 +157,18 @@ export function AdLibraryImport() {
       <TabsContent value="import" className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Download className="h-5 w-5" />
-              Facebook Ad Library Import
-            </CardTitle>
-            <CardDescription>
-              Search and import ads from Facebook Ad Library to analyze
-            </CardDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2">
+                  <Download className="h-5 w-5" />
+                  Facebook Ad Library Import
+                </CardTitle>
+                <CardDescription>
+                  Search and import ads from Facebook Ad Library to analyze
+                </CardDescription>
+              </div>
+              <FacebookApiStatusBadge />
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
