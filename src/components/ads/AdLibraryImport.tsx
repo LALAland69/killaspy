@@ -14,6 +14,7 @@ import { useAdLibrarySearch, useAdLibraryImport, FacebookApiError } from "@/hook
 import { useImportSchedules, useCreateSchedule, useToggleSchedule, useDeleteSchedule } from "@/hooks/useImportSchedules";
 import { formatDistanceToNow } from "date-fns";
 import { FacebookApiStatusBadge } from "./FacebookApiStatusBadge";
+import { FacebookApiDiagnostics } from "./FacebookApiDiagnostics";
 
 const COUNTRIES = [
   { code: "US", name: "United States" },
@@ -195,7 +196,12 @@ export function AdLibraryImport() {
       <TabsList>
         <TabsTrigger value="import">Manual Import</TabsTrigger>
         <TabsTrigger value="schedules">Scheduled Imports</TabsTrigger>
+        <TabsTrigger value="diagnostics">Diagnóstico</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="diagnostics">
+        <FacebookApiDiagnostics />
+      </TabsContent>
 
       <TabsContent value="import" className="space-y-6">
         <Card>

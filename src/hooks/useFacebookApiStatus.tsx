@@ -9,6 +9,24 @@ interface FacebookApiStatus {
   error_type?: string;
   message?: string;
   checked_at: string;
+  diagnostics?: {
+    token_length?: number;
+    token_prefix?: string;
+    token_type?: string;
+    app_id?: string;
+    is_valid?: boolean;
+    scopes?: string[];
+    expires_at?: string;
+    has_ads_read?: boolean;
+    ad_library_http_status?: number;
+    ad_library_working?: boolean;
+    ad_library_error?: {
+      code: number;
+      type: string;
+      message: string;
+      fbtrace_id?: string;
+    };
+  };
 }
 
 interface StatusCheckResponse {
@@ -95,6 +113,9 @@ export function useFacebookApiStatus() {
     return undefined;
   };
 
+  // Also return the latest check result for diagnostics
+  const latestCheckResult = checkStatus.data?.status;
+
   const statusInfo = parseStatusInfo();
   const isWorking = lastStatus?.status === "completed";
   const lastCheckedAt = lastStatus?.created_at;
@@ -106,5 +127,6 @@ export function useFacebookApiStatus() {
     isLoading: isLoadingStatus,
     isChecking: isChecking || checkStatus.isPending,
     checkStatus: handleCheckStatus,
+    latestCheckResult,
   };
 }
