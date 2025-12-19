@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
+import { CACHE_TIMES } from "@/lib/constants";
 
 export type Advertiser = Tables<"advertisers">;
 
@@ -29,6 +30,8 @@ export function useAdvertisers() {
       
       return data as Advertiser[];
     },
+    staleTime: CACHE_TIMES.STALE_TIME_DEFAULT,
+    gcTime: CACHE_TIMES.GC_TIME,
   });
 }
 

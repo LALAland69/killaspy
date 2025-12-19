@@ -108,15 +108,19 @@ export function useNicheTrends() {
       logger.apiCall("niche-trends", "SELECT", 200, duration);
       return data ?? [];
     },
+    staleTime: CACHE_TIMES.STALE_TIME_DASHBOARD,
+    gcTime: CACHE_TIMES.GC_TIME,
   });
 }
 
+// DEPRECATED: Use useDashboardData() from DashboardContext instead
+// This hook is kept for backward compatibility with standalone usage
 export function useRiskDistribution() {
   return useQuery({
     queryKey: ["risk-distribution"],
     queryFn: async () => {
       const startTime = performance.now();
-      logger.debug("API", "Fetching risk distribution");
+      logger.debug("API", "Fetching risk distribution (standalone)");
 
       const { data, error } = await supabase
         .from("ads")
@@ -137,7 +141,6 @@ export function useRiskDistribution() {
         high: 0,
       };
 
-      // REFATORAÇÃO: Usa função centralizada para determinar risk level
       (data ?? []).forEach((ad) => {
         const level = getRiskLevel(ad.suspicion_score);
         distribution[level]++;
@@ -161,15 +164,21 @@ export function useRiskDistribution() {
         },
       ];
     },
+    staleTime: CACHE_TIMES.STALE_TIME_DASHBOARD,
+    gcTime: CACHE_TIMES.GC_TIME,
+    // Disable this query when used inside DashboardProvider (data comes from context)
+    enabled: false,
   });
 }
 
+// DEPRECATED: Use useDashboardData() from DashboardContext instead
+// This hook is kept for backward compatibility with standalone usage
 export function useWinningDistribution() {
   return useQuery({
     queryKey: ["winning-distribution"],
     queryFn: async () => {
       const startTime = performance.now();
-      logger.debug("API", "Fetching winning distribution");
+      logger.debug("API", "Fetching winning distribution (standalone)");
 
       const { data, error } = await supabase
         .from("ads")
@@ -193,7 +202,6 @@ export function useWinningDistribution() {
       const distribution = { champion: 0, strong: 0, promising: 0, testing: 0 };
 
       (data ?? []).forEach((ad) => {
-        // REFATORAÇÃO: Usa função centralizada
         const total = calculateWinningScoreFromValues(
           ad.longevity_days,
           ad.engagement_score
@@ -228,5 +236,9 @@ export function useWinningDistribution() {
         },
       ];
     },
+    staleTime: CACHE_TIMES.STALE_TIME_DASHBOARD,
+    gcTime: CACHE_TIMES.GC_TIME,
+    // Disable this query when used inside DashboardProvider (data comes from context)
+    enabled: false,
   });
 }
