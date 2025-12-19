@@ -2,6 +2,8 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
+import { searchQuerySchema } from "@/lib/security";
+import { PAGINATION } from "@/lib/constants";
 
 export type Ad = Tables<"ads"> & {
   advertisers?: Tables<"advertisers"> | null;
@@ -18,15 +20,55 @@ export interface AdsFilters {
   winningTier?: string;
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = PAGINATION.DEFAULT_PAGE_SIZE;
+
+/**
+ * REFATORAÇÃO: Sanitiza input de busca para prevenir SQL injection
+ * Remove caracteres especiais e valida tamanho
+ */
+function sanitizeSearchInput(input: string | undefined): string | null {
+  if (!input || typeof input !== "string") return null;
+  
+  try {
+    // SEGURANÇA: Usa schema Zod para validar e sanitizar
+    const sanitized = searchQuerySchema.parse(input);
+    return sanitized.length > 0 ? sanitized : null;
+  } catch {
+    logger.warn("API", "Invalid search input rejected", { inputLength: input.length });
+    return null;
+  }
+}
+
+/**
+ * REFATORAÇÃO: Aplica filtro de busca de forma segura
+ */
+function applySearchFilter(
+  query: any,
+  search: string | null
+) {
+  if (!search) return query;
+  
+  // SEGURANÇA: Escape de caracteres especiais do LIKE
+  const escapedSearch = search
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
+  
+  return query.or(
+    `headline.ilike.%${escapedSearch}%,` +
+    `primary_text.ilike.%${escapedSearch}%,` +
+    `page_name.ilike.%${escapedSearch}%`
+  );
+}
+
 
 export function useAds(limit?: number, filters?: AdsFilters) {
   return useQuery({
     queryKey: ["ads", limit, filters],
     queryFn: async () => {
       const startTime = performance.now();
-      logger.debug('API', 'Fetching ads', { limit, filters });
-      
+      logger.debug("API", "Fetching ads", { limit, filters });
+
       let query = supabase
         .from("ads")
         .select(`
@@ -36,7 +78,7 @@ export function useAds(limit?: number, filters?: AdsFilters) {
         `)
         .order("suspicion_score", { ascending: false });
 
-      // Apply filters
+      // REFATORAÇÃO: Filtros aplicados de forma segura
       if (filters?.category && filters.category !== "all") {
         query = query.eq("category_id", filters.category);
       }
@@ -45,8 +87,10 @@ export function useAds(limit?: number, filters?: AdsFilters) {
         query = query.eq("status", filters.status);
       }
 
-      if (filters?.search) {
-        query = query.or(`headline.ilike.%${filters.search}%,primary_text.ilike.%${filters.search}%,page_name.ilike.%${filters.search}%`);
+      // SEGURANÇA: Sanitiza search antes de usar
+      const sanitizedSearch = sanitizeSearchInput(filters?.search);
+      if (sanitizedSearch) {
+        query = applySearchFilter(query, sanitizedSearch);
       }
 
       if (filters?.riskLevel && filters.riskLevel !== "all") {
@@ -59,22 +103,25 @@ export function useAds(limit?: number, filters?: AdsFilters) {
         }
       }
 
-      if (limit) {
-        query = query.limit(limit);
+      if (limit && limit > 0) {
+        query = query.limit(Math.min(limit, PAGINATION.MAX_PAGE_SIZE));
       }
 
       const { data, error } = await query;
       const duration = Math.round(performance.now() - startTime);
-      
+
       if (error) {
-        logger.apiCall('ads/list', 'SELECT', 400, duration, error.message);
+        logger.apiCall("ads/list", "SELECT", 400, duration, error.message);
         throw error;
       }
-      
-      logger.apiCall('ads/list', 'SELECT', 200, duration);
-      logger.debug('API', 'Ads fetched', { count: data.length, duration: `${duration}ms` });
-      
-      return data as Ad[];
+
+      logger.apiCall("ads/list", "SELECT", 200, duration);
+      logger.debug("API", "Ads fetched", {
+        count: data?.length ?? 0,
+        duration: `${duration}ms`,
+      });
+
+      return (data ?? []) as Ad[];
     },
   });
 }
@@ -83,33 +130,38 @@ export function useInfiniteAds(filters?: AdsFilters) {
   return useInfiniteQuery({
     queryKey: ["ads-infinite", filters],
     queryFn: async ({ pageParam = 0 }) => {
+      const startTime = performance.now();
+      
       let query = supabase
         .from("ads")
-        .select(`
+        .select(
+          `
           *,
           advertisers(*),
           domains(*)
-        `, { count: "exact" });
+        `,
+          { count: "exact" }
+        );
 
-      // Apply sorting
-      if (filters?.sortBy === "winning") {
-        // Sort by winning score formula: longevity * 0.6 + engagement * 0.4
-        // Since we can't do complex math in Supabase, prioritize longevity then engagement
-        query = query.order("longevity_days", { ascending: false })
-                     .order("engagement_score", { ascending: false });
-      } else if (filters?.sortBy === "oldest") {
-        query = query.order("created_at", { ascending: true });
-      } else if (filters?.sortBy === "score_high") {
-        query = query.order("suspicion_score", { ascending: false });
-      } else if (filters?.sortBy === "score_low") {
-        query = query.order("suspicion_score", { ascending: true });
-      } else if (filters?.sortBy === "longevity") {
-        query = query.order("longevity_days", { ascending: false });
-      } else {
-        query = query.order("created_at", { ascending: false });
-      }
+      // REFATORAÇÃO: Sorting centralizado
+      const sortConfig: Record<string, { column: string; ascending: boolean }[]> = {
+        winning: [
+          { column: "longevity_days", ascending: false },
+          { column: "engagement_score", ascending: false },
+        ],
+        oldest: [{ column: "created_at", ascending: true }],
+        score_high: [{ column: "suspicion_score", ascending: false }],
+        score_low: [{ column: "suspicion_score", ascending: true }],
+        longevity: [{ column: "longevity_days", ascending: false }],
+        default: [{ column: "created_at", ascending: false }],
+      };
 
-      // Apply filters
+      const sorting = sortConfig[filters?.sortBy || "default"] || sortConfig.default;
+      sorting.forEach(({ column, ascending }) => {
+        query = query.order(column, { ascending });
+      });
+
+      // REFATORAÇÃO: Filtros aplicados de forma segura
       if (filters?.category && filters.category !== "all") {
         query = query.eq("category_id", filters.category);
       }
@@ -118,13 +170,14 @@ export function useInfiniteAds(filters?: AdsFilters) {
         query = query.eq("status", filters.status);
       }
 
-      // Filter by country - check if country is in the countries array
       if (filters?.country && filters.country !== "all") {
         query = query.contains("countries", [filters.country]);
       }
 
-      if (filters?.search) {
-        query = query.or(`headline.ilike.%${filters.search}%,primary_text.ilike.%${filters.search}%,page_name.ilike.%${filters.search}%`);
+      // SEGURANÇA: Sanitiza search antes de usar
+      const sanitizedSearch = sanitizeSearchInput(filters?.search);
+      if (sanitizedSearch) {
+        query = applySearchFilter(query, sanitizedSearch);
       }
 
       if (filters?.riskLevel && filters.riskLevel !== "all") {
@@ -137,23 +190,24 @@ export function useInfiniteAds(filters?: AdsFilters) {
         }
       }
 
-      // Filter by winning tier
+      // REFATORAÇÃO: Winning tier filter com constantes
       if (filters?.winningTier && filters.winningTier !== "all") {
-        // Winning score thresholds based on longevity primarily
-        // champion: 85+ → longevity 51+ days (85/60*0.6 ≈ 51 days for 85 score)
-        // strong: 70-84 → longevity 42-50 days  
-        // promising: 50-69 → longevity 30-41 days
-        // testing: 0-49 → longevity <30 days
-        if (filters.winningTier === "winners") {
-          query = query.gte("longevity_days", 42);
-        } else if (filters.winningTier === "champion") {
-          query = query.gte("longevity_days", 51);
-        } else if (filters.winningTier === "strong") {
-          query = query.gte("longevity_days", 42).lt("longevity_days", 51);
-        } else if (filters.winningTier === "promising") {
-          query = query.gte("longevity_days", 30).lt("longevity_days", 42);
-        } else if (filters.winningTier === "testing") {
-          query = query.lt("longevity_days", 30);
+        const tierFilters: Record<string, { gte?: number; lt?: number }> = {
+          winners: { gte: 42 },
+          champion: { gte: 51 },
+          strong: { gte: 42, lt: 51 },
+          promising: { gte: 30, lt: 42 },
+          testing: { lt: 30 },
+        };
+        
+        const tierFilter = tierFilters[filters.winningTier];
+        if (tierFilter) {
+          if (tierFilter.gte !== undefined) {
+            query = query.gte("longevity_days", tierFilter.gte);
+          }
+          if (tierFilter.lt !== undefined) {
+            query = query.lt("longevity_days", tierFilter.lt);
+          }
         }
       }
 
@@ -163,12 +217,22 @@ export function useInfiniteAds(filters?: AdsFilters) {
       query = query.range(from, to);
 
       const { data, error, count } = await query;
-      if (error) throw error;
+      const duration = Math.round(performance.now() - startTime);
+
+      if (error) {
+        logger.apiCall("ads-infinite", "SELECT", 400, duration, error.message);
+        throw error;
+      }
+
+      logger.apiCall("ads-infinite", "SELECT", 200, duration);
+
+      // REFATORAÇÃO: Safe nullish coalescing
+      const ads = (data ?? []) as Ad[];
       
       return {
-        ads: data as Ad[],
-        nextPage: data.length === PAGE_SIZE ? pageParam + 1 : undefined,
-        totalCount: count || 0,
+        ads,
+        nextPage: ads.length === PAGE_SIZE ? pageParam + 1 : undefined,
+        totalCount: count ?? 0,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
@@ -180,6 +244,8 @@ export function useAdById(adId: string) {
   return useQuery({
     queryKey: ["ad", adId],
     queryFn: async () => {
+      const startTime = performance.now();
+      
       const { data, error } = await supabase
         .from("ads")
         .select(`
@@ -190,10 +256,17 @@ export function useAdById(adId: string) {
         .eq("id", adId)
         .single();
 
-      if (error) throw error;
+      const duration = Math.round(performance.now() - startTime);
+
+      if (error) {
+        logger.apiCall("ads/get", "SELECT", 400, duration, error.message);
+        throw error;
+      }
+
+      logger.apiCall("ads/get", "SELECT", 200, duration);
       return data as Ad;
     },
-    enabled: !!adId,
+    enabled: Boolean(adId),
   });
 }
 
@@ -201,6 +274,8 @@ export function useAdsByAdvertiser(advertiserId: string) {
   return useQuery({
     queryKey: ["ads", "advertiser", advertiserId],
     queryFn: async () => {
+      const startTime = performance.now();
+      
       const { data, error } = await supabase
         .from("ads")
         .select(`
@@ -210,9 +285,16 @@ export function useAdsByAdvertiser(advertiserId: string) {
         .eq("advertiser_id", advertiserId)
         .order("suspicion_score", { ascending: false });
 
-      if (error) throw error;
-      return data as Ad[];
+      const duration = Math.round(performance.now() - startTime);
+
+      if (error) {
+        logger.apiCall("ads/by-advertiser", "SELECT", 400, duration, error.message);
+        throw error;
+      }
+
+      logger.apiCall("ads/by-advertiser", "SELECT", 200, duration);
+      return (data ?? []) as Ad[];
     },
-    enabled: !!advertiserId,
+    enabled: Boolean(advertiserId),
   });
 }

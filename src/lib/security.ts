@@ -1,9 +1,12 @@
 /**
  * SECURITY: Comprehensive input validation and sanitization utilities
  * Implements defense-in-depth against injection attacks
+ * 
+ * REFATORAÇÃO: Adicionado cleanup automático de rate limit store
  */
 
 import { z } from "zod";
+import { RATE_LIMITS, SECURITY } from "./constants";
 
 // ============= XSS PREVENTION =============
 
@@ -43,9 +46,9 @@ export function stripHtml(str: string): string {
  */
 export function sanitizeUrl(url: string): string {
   if (typeof url !== "string") return "";
-  
+
   const trimmed = url.trim().toLowerCase();
-  
+
   // SECURITY: Block dangerous protocols
   const dangerousProtocols = [
     "javascript:",
@@ -54,14 +57,14 @@ export function sanitizeUrl(url: string): string {
     "file:",
     "about:",
   ];
-  
+
   for (const protocol of dangerousProtocols) {
     if (trimmed.startsWith(protocol)) {
       console.warn(`[SECURITY] Blocked dangerous URL protocol: ${protocol}`);
       return "";
     }
   }
-  
+
   return url;
 }
 
@@ -82,7 +85,7 @@ export const uuidSchema = z
 export const emailSchema = z
   .string()
   .email({ message: "Invalid email address" })
-  .max(255, { message: "Email too long" })
+  .max(SECURITY.EMAIL_MAX_LENGTH, { message: "Email too long" })
   .transform((val) => val.toLowerCase().trim());
 
 // Safe string with length limits (prevents buffer overflow)
@@ -95,7 +98,7 @@ export const safeStringSchema = (maxLength: number = 1000) =>
 // Search query - sanitized for database use
 export const searchQuerySchema = z
   .string()
-  .max(200, { message: "Search query too long" })
+  .max(SECURITY.SEARCH_QUERY_MAX_LENGTH, { message: "Search query too long" })
   .transform((val) => {
     // SECURITY: Remove SQL injection patterns
     return val
@@ -103,7 +106,7 @@ export const searchQuerySchema = z
       .replace(/['"`;\\]/g, "") // Remove quotes and escape chars
       .replace(/--/g, "") // Remove SQL comments
       .replace(/\/\*/g, "") // Remove block comments
-      .substring(0, 200);
+      .substring(0, SECURITY.SEARCH_QUERY_MAX_LENGTH);
   });
 
 // Positive integer (for limits, page numbers)
@@ -124,7 +127,7 @@ export const countryCodeSchema = z
 export const safeUrlSchema = z
   .string()
   .url({ message: "Invalid URL format" })
-  .max(2048, { message: "URL too long" })
+  .max(SECURITY.URL_MAX_LENGTH, { message: "URL too long" })
   .refine(
     (url) => {
       try {
@@ -167,8 +170,10 @@ export const loginFormSchema = z.object({
   email: emailSchema,
   password: z
     .string()
-    .min(8, { message: "Password must be at least 8 characters" })
-    .max(128, { message: "Password too long" }),
+    .min(SECURITY.PASSWORD_MIN_LENGTH, {
+      message: `Password must be at least ${SECURITY.PASSWORD_MIN_LENGTH} characters`,
+    })
+    .max(SECURITY.PASSWORD_MAX_LENGTH, { message: "Password too long" }),
 });
 
 /**
@@ -200,15 +205,15 @@ export const importScheduleSchema = z.object({
  */
 export function detectSqlInjection(input: string): boolean {
   if (typeof input !== "string") return false;
-  
+
   const patterns = [
     /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|EXEC|UNION|DECLARE)\b)/i,
     /(\b(OR|AND)\s+\d+\s*=\s*\d+)/i, // OR 1=1, AND 1=1
-    /(--|\/\*|\*\/|;)/,              // SQL comments
-    /('|")\s*(OR|AND)/i,              // Quote followed by OR/AND
+    /(--|\/\*|\*\/|;)/, // SQL comments
+    /('|")\s*(OR|AND)/i, // Quote followed by OR/AND
     /(\bCONCAT\b|\bCHAR\b|\bCHR\b)/i, // Common SQL functions
   ];
-  
+
   return patterns.some((pattern) => pattern.test(input));
 }
 
@@ -217,11 +222,11 @@ export function detectSqlInjection(input: string): boolean {
  */
 export function detectXssAttempt(input: string): boolean {
   if (typeof input !== "string") return false;
-  
+
   const patterns = [
     /<script\b/i,
     /javascript:/i,
-    /on\w+\s*=/i,    // onclick=, onerror=, etc.
+    /on\w+\s*=/i, // onclick=, onerror=, etc.
     /<iframe/i,
     /<object/i,
     /<embed/i,
@@ -230,7 +235,7 @@ export function detectXssAttempt(input: string): boolean {
     /eval\s*\(/i,
     /document\.(cookie|location|write)/i,
   ];
-  
+
   return patterns.some((pattern) => pattern.test(input));
 }
 
@@ -239,15 +244,15 @@ export function detectXssAttempt(input: string): boolean {
  */
 export function detectPathTraversal(input: string): boolean {
   if (typeof input !== "string") return false;
-  
+
   const patterns = [
-    /\.\.\//,         // ../
-    /\.\.\\>/,        // ..\
-    /%2e%2e/i,        // URL encoded ..
-    /%252e%252e/i,    // Double URL encoded
-    /\.\.%2f/i,       // Mixed encoding
+    /\.\.\//, // ../
+    /\.\.\\>/, // ..\
+    /%2e%2e/i, // URL encoded ..
+    /%252e%252e/i, // Double URL encoded
+    /\.\.%2f/i, // Mixed encoding
   ];
-  
+
   return patterns.some((pattern) => pattern.test(input));
 }
 
@@ -262,7 +267,7 @@ export function securityCheck(input: string): {
   isSafe: boolean;
 } {
   const threats: string[] = [];
-  
+
   if (detectSqlInjection(input)) {
     threats.push("SQL_INJECTION");
   }
@@ -272,7 +277,7 @@ export function securityCheck(input: string): {
   if (detectPathTraversal(input)) {
     threats.push("PATH_TRAVERSAL");
   }
-  
+
   return {
     original: input,
     sanitized: escapeHtml(stripHtml(input)),
@@ -292,32 +297,40 @@ export function checkPasswordStrength(password: string): {
 } {
   const feedback: string[] = [];
   let score = 0;
-  
-  if (password.length >= 8) score++;
-  else feedback.push("Use at least 8 characters");
-  
+
+  if (password.length >= SECURITY.PASSWORD_MIN_LENGTH) score++;
+  else feedback.push(`Use at least ${SECURITY.PASSWORD_MIN_LENGTH} characters`);
+
   if (password.length >= 12) score++;
-  
+
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
   else feedback.push("Mix uppercase and lowercase letters");
-  
+
   if (/\d/.test(password)) score++;
   else feedback.push("Add numbers");
-  
+
   if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score++;
   else feedback.push("Add special characters");
-  
+
   // SECURITY: Check for common weak passwords
   const weakPasswords = [
-    "password", "123456", "12345678", "qwerty", "abc123",
-    "password123", "admin", "letmein", "welcome", "monkey",
+    "password",
+    "123456",
+    "12345678",
+    "qwerty",
+    "abc123",
+    "password123",
+    "admin",
+    "letmein",
+    "welcome",
+    "monkey",
   ];
-  
+
   if (weakPasswords.some((weak) => password.toLowerCase().includes(weak))) {
     score = Math.max(0, score - 2);
     feedback.push("Avoid common passwords");
   }
-  
+
   return { score: Math.min(4, score), feedback };
 }
 
@@ -331,8 +344,45 @@ interface RateLimitEntry {
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
 /**
+ * REFATORAÇÃO: Cleanup automático de entradas expiradas
+ * Previne memory leak no rate limit store
+ */
+let cleanupScheduled = false;
+
+function scheduleCleanup(): void {
+  if (cleanupScheduled) return;
+  cleanupScheduled = true;
+  
+  setTimeout(() => {
+    const now = Date.now();
+    let cleanedCount = 0;
+    
+    for (const [key, entry] of rateLimitStore.entries()) {
+      if (now > entry.resetAt) {
+        rateLimitStore.delete(key);
+        cleanedCount++;
+      }
+    }
+    
+    // REFATORAÇÃO: Força limpeza se store muito grande
+    if (rateLimitStore.size > RATE_LIMITS.MAX_ENTRIES) {
+      const entriesToDelete = rateLimitStore.size - RATE_LIMITS.MAX_ENTRIES;
+      const keys = Array.from(rateLimitStore.keys()).slice(0, entriesToDelete);
+      keys.forEach((key) => rateLimitStore.delete(key));
+      cleanedCount += entriesToDelete;
+    }
+    
+    if (cleanedCount > 0) {
+      console.debug(`[SECURITY] Cleaned ${cleanedCount} expired rate limit entries`);
+    }
+    
+    cleanupScheduled = false;
+  }, RATE_LIMITS.CLEANUP_INTERVAL_MS);
+}
+
+/**
  * SECURITY: Simple in-memory rate limiter
- * For production, use Redis or similar
+ * REFATORAÇÃO: Agora com cleanup automático
  */
 export function checkRateLimit(
   key: string,
@@ -341,25 +391,38 @@ export function checkRateLimit(
 ): { allowed: boolean; remaining: number; resetIn: number } {
   const now = Date.now();
   const entry = rateLimitStore.get(key);
-  
+
+  // REFATORAÇÃO: Agenda cleanup se necessário
+  scheduleCleanup();
+
   if (!entry || now > entry.resetAt) {
     // New window
     rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
     return { allowed: true, remaining: maxRequests - 1, resetIn: windowMs };
   }
-  
+
   if (entry.count >= maxRequests) {
     return { allowed: false, remaining: 0, resetIn: entry.resetAt - now };
   }
-  
+
   entry.count++;
-  return { allowed: true, remaining: maxRequests - entry.count, resetIn: entry.resetAt - now };
+  return {
+    allowed: true,
+    remaining: maxRequests - entry.count,
+    resetIn: entry.resetAt - now,
+  };
 }
 
 // ============= SECURITY LOGGING =============
 
 export interface SecurityEvent {
-  type: "SQL_INJECTION" | "XSS" | "PATH_TRAVERSAL" | "RATE_LIMIT" | "AUTH_FAILURE" | "SUSPICIOUS";
+  type:
+    | "SQL_INJECTION"
+    | "XSS"
+    | "PATH_TRAVERSAL"
+    | "RATE_LIMIT"
+    | "AUTH_FAILURE"
+    | "SUSPICIOUS";
   timestamp: string;
   ip?: string;
   userId?: string;
@@ -373,20 +436,24 @@ const securityLog: SecurityEvent[] = [];
 /**
  * SECURITY: Log security events for monitoring
  */
-export function logSecurityEvent(event: Omit<SecurityEvent, "timestamp">): void {
+export function logSecurityEvent(
+  event: Omit<SecurityEvent, "timestamp">
+): void {
   const fullEvent: SecurityEvent = {
     ...event,
     timestamp: new Date().toISOString(),
-    input: event.input ? event.input.substring(0, 500) : undefined, // Truncate long inputs
+    input: event.input
+      ? event.input.substring(0, SECURITY.MAX_INPUT_LENGTH)
+      : undefined,
   };
-  
+
   securityLog.push(fullEvent);
-  
-  // Keep only last 1000 events in memory
-  if (securityLog.length > 1000) {
+
+  // Keep only last MAX_LOG_ENTRIES events in memory
+  if (securityLog.length > SECURITY.MAX_LOG_ENTRIES) {
     securityLog.shift();
   }
-  
+
   // Log to console with warning level
   console.warn(`[SECURITY] ${event.type}:`, fullEvent);
 }
