@@ -26,28 +26,90 @@ async function checkFacebookApiStatus(): Promise<StatusCheckResult> {
     };
   }
 
+  const diagnostics: Record<string, unknown> = {
+    token_length: accessToken.length,
+    token_prefix: accessToken.substring(0, 12) + "...",
+  };
+
   try {
-    // Test the token with a simple debug call
-    const response = await fetch(
-      `https://graph.facebook.com/v21.0/me?access_token=${accessToken}`
+    // Step 1: Check token debug info
+    const debugResponse = await fetch(
+      `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${accessToken}`
     );
+    const debugData = await debugResponse.json();
     
-    const data = await response.json();
+    if (debugData.data) {
+      diagnostics.token_type = debugData.data.type;
+      diagnostics.app_id = debugData.data.app_id;
+      diagnostics.is_valid = debugData.data.is_valid;
+      diagnostics.scopes = debugData.data.scopes;
+      diagnostics.expires_at = debugData.data.expires_at 
+        ? new Date(debugData.data.expires_at * 1000).toISOString() 
+        : "never";
+      
+      // Check if ads_read permission is present
+      const hasAdsRead = debugData.data.scopes?.includes("ads_read");
+      diagnostics.has_ads_read = hasAdsRead;
+      
+      if (!hasAdsRead) {
+        return {
+          success: false,
+          error_type: "permission",
+          message: "Token não possui permissão 'ads_read'. Regenere o token com esta permissão.",
+          checked_at: new Date().toISOString(),
+          diagnostics,
+        };
+      }
+      
+      if (!debugData.data.is_valid) {
+        return {
+          success: false,
+          error_type: "invalid_token",
+          message: "Token inválido ou expirado",
+          checked_at: new Date().toISOString(),
+          diagnostics,
+        };
+      }
+    }
+
+    // Step 2: Test the Ad Library endpoint directly
+    const adLibraryUrl = `https://graph.facebook.com/v21.0/ads_archive?access_token=${accessToken}&ad_reached_countries=["US"]&search_terms=test&limit=1&fields=id`;
+    const adLibResponse = await fetch(adLibraryUrl);
+    const adLibData = await adLibResponse.json();
     
-    if (data.error) {
+    diagnostics.ad_library_http_status = adLibResponse.status;
+    
+    if (adLibData.error) {
+      const errorCode = adLibData.error.code;
+      const isTransient = errorCode === 1 || errorCode === 2;
+      
+      diagnostics.ad_library_error = {
+        code: errorCode,
+        type: adLibData.error.type,
+        message: adLibData.error.message,
+        fbtrace_id: adLibData.error.fbtrace_id,
+      };
+      
       return {
         success: false,
-        error_code: data.error.code,
-        error_type: data.error.code === 1 ? "transient" : "permanent",
-        message: data.error.message,
+        error_code: errorCode,
+        error_type: isTransient ? "transient" : "ad_library_error",
+        message: isTransient 
+          ? `Erro temporário do Facebook (código ${errorCode}). Aguarde alguns minutos.`
+          : `Erro na Ad Library: ${adLibData.error.message}`,
         checked_at: new Date().toISOString(),
+        diagnostics,
       };
     }
     
+    diagnostics.ad_library_working = true;
+    diagnostics.test_ads_returned = adLibData.data?.length || 0;
+    
     return {
       success: true,
-      message: "API funcionando normalmente",
+      message: "Token válido e Ad Library funcionando",
       checked_at: new Date().toISOString(),
+      diagnostics,
     };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
@@ -56,8 +118,18 @@ async function checkFacebookApiStatus(): Promise<StatusCheckResult> {
       error_type: "network",
       message: errorMessage,
       checked_at: new Date().toISOString(),
+      diagnostics,
     };
   }
+}
+
+interface StatusCheckResult {
+  success: boolean;
+  error_code?: number;
+  error_type?: string;
+  message?: string;
+  checked_at: string;
+  diagnostics?: Record<string, unknown>;
 }
 
 serve(async (req) => {
