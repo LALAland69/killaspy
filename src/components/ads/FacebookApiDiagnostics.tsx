@@ -100,7 +100,7 @@ export function FacebookApiDiagnostics() {
               <Globe className="h-4 w-4" />
               Conexão com Ad Library
             </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <DiagnosticItem
                 label="HTTP Status"
                 value={diagnostics.ad_library_http_status}
@@ -112,7 +112,46 @@ export function FacebookApiDiagnostics() {
                 type="boolean"
                 critical
               />
+              <DiagnosticItem
+                label="Versão API"
+                value={diagnostics.ad_library_version ?? "—"}
+              />
+              <DiagnosticItem
+                label="Tentativa"
+                value={diagnostics.ad_library_attempt ?? "—"}
+              />
             </div>
+
+            {/* Evidence Mode - Technical Details */}
+            {(diagnostics.ad_library_error || !diagnostics.ad_library_working) && (
+              <div className="mt-2 p-2 rounded bg-muted/50 border text-xs space-y-1.5">
+                <div className="flex items-center gap-2 font-medium text-muted-foreground">
+                  <Shield className="h-3 w-3" />
+                  Modo Evidência (para suporte)
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-muted-foreground font-mono text-[10px]">
+                  <span>api_version: {diagnostics.ad_library_version ?? "n/a"}</span>
+                  <span>http_status: {diagnostics.ad_library_http_status ?? "n/a"}</span>
+                  <span>attempt: {diagnostics.ad_library_attempt ?? "n/a"}</span>
+                  {diagnostics.ad_library_error?.code && (
+                    <span>error_code: {diagnostics.ad_library_error.code}</span>
+                  )}
+                  {diagnostics.ad_library_error?.type && (
+                    <span>error_type: {diagnostics.ad_library_error.type}</span>
+                  )}
+                  {diagnostics.ad_library_error?.fbtrace_id && (
+                    <span className="col-span-2 md:col-span-3 break-all">
+                      fbtrace_id: {diagnostics.ad_library_error.fbtrace_id}
+                    </span>
+                  )}
+                </div>
+                {diagnostics.ad_library_error?.message && (
+                  <p className="text-muted-foreground italic">
+                    "{diagnostics.ad_library_error.message}"
+                  </p>
+                )}
+              </div>
+            )}
 
             {diagnostics.ad_library_error && (
               <div className="mt-2 p-2 rounded bg-destructive/10 border border-destructive/20 text-xs space-y-1">
@@ -127,11 +166,6 @@ export function FacebookApiDiagnostics() {
                 <p className="text-muted-foreground">
                   {diagnostics.ad_library_error.message}
                 </p>
-                {diagnostics.ad_library_error.fbtrace_id && (
-                  <code className="block text-[10px] text-muted-foreground mt-1">
-                    fbtrace_id: {diagnostics.ad_library_error.fbtrace_id}
-                  </code>
-                )}
               </div>
             )}
           </div>
