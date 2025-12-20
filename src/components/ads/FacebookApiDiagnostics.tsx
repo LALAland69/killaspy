@@ -2,9 +2,10 @@ import { useFacebookApiStatus } from "@/hooks/useFacebookApiStatus";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Shield, Key, Globe } from "lucide-react";
+import { Loader2, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Shield, Key, Globe, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-
+import { useState, useCallback } from "react";
+import { toast } from "sonner";
 export function FacebookApiDiagnostics() {
   const { isChecking, checkStatus, latestCheckResult } = useFacebookApiStatus();
 
@@ -124,33 +125,7 @@ export function FacebookApiDiagnostics() {
 
             {/* Evidence Mode - Technical Details */}
             {(diagnostics.ad_library_error || !diagnostics.ad_library_working) && (
-              <div className="mt-2 p-2 rounded bg-muted/50 border text-xs space-y-1.5">
-                <div className="flex items-center gap-2 font-medium text-muted-foreground">
-                  <Shield className="h-3 w-3" />
-                  Modo Evidência (para suporte)
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-muted-foreground font-mono text-[10px]">
-                  <span>api_version: {diagnostics.ad_library_version ?? "n/a"}</span>
-                  <span>http_status: {diagnostics.ad_library_http_status ?? "n/a"}</span>
-                  <span>attempt: {diagnostics.ad_library_attempt ?? "n/a"}</span>
-                  {diagnostics.ad_library_error?.code && (
-                    <span>error_code: {diagnostics.ad_library_error.code}</span>
-                  )}
-                  {diagnostics.ad_library_error?.type && (
-                    <span>error_type: {diagnostics.ad_library_error.type}</span>
-                  )}
-                  {diagnostics.ad_library_error?.fbtrace_id && (
-                    <span className="col-span-2 md:col-span-3 break-all">
-                      fbtrace_id: {diagnostics.ad_library_error.fbtrace_id}
-                    </span>
-                  )}
-                </div>
-                {diagnostics.ad_library_error?.message && (
-                  <p className="text-muted-foreground italic">
-                    "{diagnostics.ad_library_error.message}"
-                  </p>
-                )}
-              </div>
+              <EvidenceMode diagnostics={diagnostics} />
             )}
 
             {diagnostics.ad_library_error && (
@@ -207,6 +182,100 @@ export function FacebookApiDiagnostics() {
         </CardContent>
       )}
     </Card>
+  );
+}
+
+function EvidenceMode({ diagnostics }: { diagnostics: NonNullable<ReturnType<typeof useFacebookApiStatus>['latestCheckResult']>['diagnostics'] }) {
+  const [copied, setCopied] = useState(false);
+
+  const getEvidenceText = useCallback(() => {
+    if (!diagnostics) return "";
+    
+    const lines = [
+      "=== Facebook API Diagnostic Evidence ===",
+      `timestamp: ${new Date().toISOString()}`,
+      `api_version: ${diagnostics.ad_library_version ?? "n/a"}`,
+      `http_status: ${diagnostics.ad_library_http_status ?? "n/a"}`,
+      `attempt: ${diagnostics.ad_library_attempt ?? "n/a"}`,
+      `token_valid: ${diagnostics.is_valid ?? "n/a"}`,
+      `token_type: ${diagnostics.token_type ?? "n/a"}`,
+      `has_ads_read: ${diagnostics.has_ads_read ?? "n/a"}`,
+    ];
+
+    if (diagnostics.ad_library_error) {
+      lines.push(`error_code: ${diagnostics.ad_library_error.code}`);
+      lines.push(`error_type: ${diagnostics.ad_library_error.type}`);
+      lines.push(`fbtrace_id: ${diagnostics.ad_library_error.fbtrace_id ?? "n/a"}`);
+      lines.push(`error_message: "${diagnostics.ad_library_error.message}"`);
+    }
+
+    lines.push("========================================");
+    return lines.join("\n");
+  }, [diagnostics]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(getEvidenceText());
+      setCopied(true);
+      toast.success("Dados copiados!", {
+        description: "Cole em um e-mail ou ticket de suporte.",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Erro ao copiar", {
+        description: "Tente selecionar o texto manualmente.",
+      });
+    }
+  };
+
+  return (
+    <div className="mt-2 p-2 rounded bg-muted/50 border text-xs space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 font-medium text-muted-foreground">
+          <Shield className="h-3 w-3" />
+          Modo Evidência (para suporte)
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCopy}
+          className="h-6 px-2 text-xs gap-1"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 text-green-500" />
+              Copiado
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" />
+              Copiar
+            </>
+          )}
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-muted-foreground font-mono text-[10px]">
+        <span>api_version: {diagnostics?.ad_library_version ?? "n/a"}</span>
+        <span>http_status: {diagnostics?.ad_library_http_status ?? "n/a"}</span>
+        <span>attempt: {diagnostics?.ad_library_attempt ?? "n/a"}</span>
+        {diagnostics?.ad_library_error?.code && (
+          <span>error_code: {diagnostics.ad_library_error.code}</span>
+        )}
+        {diagnostics?.ad_library_error?.type && (
+          <span>error_type: {diagnostics.ad_library_error.type}</span>
+        )}
+        {diagnostics?.ad_library_error?.fbtrace_id && (
+          <span className="col-span-2 md:col-span-3 break-all">
+            fbtrace_id: {diagnostics.ad_library_error.fbtrace_id}
+          </span>
+        )}
+      </div>
+      {diagnostics?.ad_library_error?.message && (
+        <p className="text-muted-foreground italic">
+          "{diagnostics.ad_library_error.message}"
+        </p>
+      )}
+    </div>
   );
 }
 
