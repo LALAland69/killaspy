@@ -72,42 +72,102 @@ async function checkFacebookApiStatus(): Promise<StatusCheckResult> {
       }
     }
 
-    // Step 2: Test the Ad Library endpoint directly
-    const adLibraryUrl = `https://graph.facebook.com/v21.0/ads_archive?access_token=${accessToken}&ad_reached_countries=["US"]&search_terms=test&limit=1&fields=id`;
-    const adLibResponse = await fetch(adLibraryUrl);
-    const adLibData = await adLibResponse.json();
-    
-    diagnostics.ad_library_http_status = adLibResponse.status;
-    
-    if (adLibData.error) {
-      const errorCode = adLibData.error.code;
+    // Step 2: Test the Ad Library endpoint directly (with retries + fallback versions)
+    const versionsToTry = ["v21.0", "v24.0"];
+    const maxAttemptsPerVersion = 2;
+
+    let lastAdLibStatus: number | undefined;
+    let lastAdLibError: any | undefined;
+
+    for (const version of versionsToTry) {
+      for (let attempt = 1; attempt <= maxAttemptsPerVersion; attempt++) {
+        const qp = new URLSearchParams({
+          access_token: accessToken,
+          // Graph API expects a JSON array string: ["US"]
+          ad_reached_countries: JSON.stringify(["US"]),
+          search_terms: "test",
+          limit: "1",
+          fields: "id",
+        });
+
+        const adLibraryUrl = `https://graph.facebook.com/${version}/ads_archive?${qp.toString()}`;
+        const adLibResponse = await fetch(adLibraryUrl);
+
+        lastAdLibStatus = adLibResponse.status;
+        diagnostics.ad_library_http_status = adLibResponse.status;
+        diagnostics.ad_library_version = version;
+        diagnostics.ad_library_attempt = attempt;
+
+        let adLibData: any = {};
+        try {
+          adLibData = await adLibResponse.json();
+        } catch {
+          adLibData = {};
+        }
+
+        if (!adLibData?.error && adLibResponse.ok) {
+          diagnostics.ad_library_working = true;
+          diagnostics.test_ads_returned = adLibData.data?.length || 0;
+          return {
+            success: true,
+            message: "Token válido e Ad Library funcionando",
+            checked_at: new Date().toISOString(),
+            diagnostics,
+          };
+        }
+
+        lastAdLibError = adLibData?.error;
+
+        if (lastAdLibError) {
+          const errorCode = lastAdLibError.code;
+          const isTransient =
+            errorCode === 1 ||
+            errorCode === 2 ||
+            lastAdLibError.is_transient === true ||
+            adLibResponse.status >= 500;
+
+          diagnostics.ad_library_error = {
+            code: errorCode,
+            type: lastAdLibError.type,
+            message: lastAdLibError.message,
+            fbtrace_id: lastAdLibError.fbtrace_id,
+          };
+
+          if (isTransient && attempt < maxAttemptsPerVersion) {
+            await new Promise((r) => setTimeout(r, 350 * attempt));
+            continue;
+          }
+        }
+
+        // Non-JSON or non-error body but not OK: retry only on server errors
+        if (adLibResponse.status >= 500 && attempt < maxAttemptsPerVersion) {
+          await new Promise((r) => setTimeout(r, 350 * attempt));
+          continue;
+        }
+      }
+    }
+
+    // If we reached here, Ad Library is not working
+    if (lastAdLibError) {
+      const errorCode = lastAdLibError.code;
       const isTransient = errorCode === 1 || errorCode === 2;
-      
-      diagnostics.ad_library_error = {
-        code: errorCode,
-        type: adLibData.error.type,
-        message: adLibData.error.message,
-        fbtrace_id: adLibData.error.fbtrace_id,
-      };
-      
+
       return {
         success: false,
         error_code: errorCode,
         error_type: isTransient ? "transient" : "ad_library_error",
-        message: isTransient 
+        message: isTransient
           ? `Erro temporário do Facebook (código ${errorCode}). Aguarde alguns minutos.`
-          : `Erro na Ad Library: ${adLibData.error.message}`,
+          : `Erro na Ad Library: ${lastAdLibError.message}`,
         checked_at: new Date().toISOString(),
         diagnostics,
       };
     }
-    
-    diagnostics.ad_library_working = true;
-    diagnostics.test_ads_returned = adLibData.data?.length || 0;
-    
+
     return {
-      success: true,
-      message: "Token válido e Ad Library funcionando",
+      success: false,
+      error_type: "network",
+      message: `Falha ao acessar Ad Library (HTTP ${lastAdLibStatus ?? "?"})`,
       checked_at: new Date().toISOString(),
       diagnostics,
     };
