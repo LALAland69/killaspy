@@ -31,9 +31,9 @@ interface ImportResults {
 
 export interface FacebookApiError {
   message: string;
-  fbtrace_id?: string;
   isTransient?: boolean;
   suggestion?: string;
+  errorCategory?: string;
 }
 
 const MAX_RETRIES = 3;
@@ -42,32 +42,30 @@ const BASE_DELAY_MS = 2000;
 function parseApiError(errorMessage: string): FacebookApiError {
   const result: FacebookApiError = { message: errorMessage };
   
-  // Extract fbtrace_id from error message if present
-  const fbtraceMatch = errorMessage.match(/fbtrace_id[:\s]+([A-Za-z0-9_-]+)/);
-  if (fbtraceMatch) {
-    result.fbtrace_id = fbtraceMatch[1];
-  }
-  
-  // Detect transient errors
+  // Detect transient errors from sanitized server messages
   const isTransient = 
-    errorMessage.includes("temporary") ||
+    errorMessage.includes("high demand") ||
     errorMessage.includes("try again") ||
-    errorMessage.includes("unknown error") ||
-    errorMessage.includes("[1]") ||
-    errorMessage.includes("[2]") ||
-    errorMessage.includes("500");
+    errorMessage.includes("temporarily unavailable");
   
   result.isTransient = isTransient;
   
-  // Add suggestions based on error type
+  // Add user-friendly suggestions based on sanitized error categories
   if (isTransient) {
-    result.suggestion = "Este é um erro temporário do Facebook. O sistema tentará novamente automaticamente.";
-  } else if (errorMessage.includes("Token Error") || errorMessage.includes("[190]") || errorMessage.includes("[102]")) {
-    result.suggestion = "Token expirado ou inválido. Verifique o FACEBOOK_ACCESS_TOKEN nas configurações.";
-  } else if (errorMessage.includes("Permission Error") || errorMessage.includes("[10]") || errorMessage.includes("[200]")) {
-    result.suggestion = "Permissões insuficientes. Verifique se o app tem 'ads_read' aprovado.";
-  } else if (errorMessage.includes("Rate Limit") || errorMessage.includes("[4]") || errorMessage.includes("[17]")) {
+    result.suggestion = "Este é um erro temporário. O sistema tentará novamente automaticamente.";
+    result.errorCategory = "TEMPORARY_ERROR";
+  } else if (errorMessage.includes("Token configuration") || errorMessage.includes("token settings")) {
+    result.suggestion = "Há um problema com a configuração do token. Verifique as configurações da API.";
+    result.errorCategory = "TOKEN_ERROR";
+  } else if (errorMessage.includes("Permission denied") || errorMessage.includes("permissions")) {
+    result.suggestion = "Permissões insuficientes. Verifique se a aplicação tem as permissões necessárias.";
+    result.errorCategory = "PERMISSION_ERROR";
+  } else if (errorMessage.includes("Rate limit") || errorMessage.includes("rate limit")) {
     result.suggestion = "Limite de requisições atingido. Aguarde alguns minutos antes de tentar novamente.";
+    result.errorCategory = "RATE_LIMIT";
+  } else {
+    result.suggestion = "Ocorreu um erro. Por favor, tente novamente.";
+    result.errorCategory = "UNKNOWN";
   }
   
   return result;

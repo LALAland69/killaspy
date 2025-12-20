@@ -7,20 +7,29 @@ const corsHeaders = {
 };
 
 // URL validation to prevent SSRF attacks
+// Enhanced SSRF protection with comprehensive validation
 function isValidExternalUrl(urlString: string): { valid: boolean; error?: string } {
   try {
     const url = new URL(urlString);
     
+    // Protocol validation
     if (!["http:", "https:"].includes(url.protocol)) {
       return { valid: false, error: "Only HTTP and HTTPS protocols are allowed" };
     }
     
     const hostname = url.hostname.toLowerCase();
     
+    // Localhost and loopback
     if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
       return { valid: false, error: "Localhost URLs are not allowed" };
     }
     
+    // IPv6 private address validation
+    if (hostname.startsWith("fd") || hostname.startsWith("fc") || hostname.startsWith("fe80")) {
+      return { valid: false, error: "IPv6 private addresses are not allowed" };
+    }
+    
+    // IPv4 private range validation
     const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
     if (ipv4Match) {
       const [, a, b] = ipv4Match.map(Number);
@@ -32,17 +41,56 @@ function isValidExternalUrl(urlString: string): { valid: boolean; error?: string
       if (a === 0) return { valid: false, error: "Invalid IP address" };
     }
     
-    const blockedPatterns = [/\.local$/, /\.internal$/, /\.corp$/, /\.lan$/, /^metadata\.google\.internal$/];
+    // Block cloud metadata endpoints
+    const blockedHosts = [
+      "metadata.google.internal",
+      "metadata.azure.com",
+      "169.254.169.254",
+    ];
+    if (blockedHosts.includes(hostname)) {
+      return { valid: false, error: "Cloud metadata endpoints are blocked" };
+    }
+    
+    // Block internal TLDs and patterns
+    const blockedPatterns = [/\.local$/, /\.internal$/, /\.corp$/, /\.lan$/];
     for (const pattern of blockedPatterns) {
       if (pattern.test(hostname)) {
         return { valid: false, error: "Internal hostnames are not allowed" };
       }
     }
     
+    // Block dangerous ports (internal services)
+    const port = url.port ? parseInt(url.port) : (url.protocol === "https:" ? 443 : 80);
+    const blockedPorts = [22, 23, 25, 3306, 5432, 6379, 27017, 11211, 9200, 9300];
+    if (blockedPorts.includes(port)) {
+      return { valid: false, error: "Access to internal service ports is blocked" };
+    }
+    
     return { valid: true };
   } catch {
     return { valid: false, error: "Invalid URL format" };
   }
+}
+
+// Safe fetch wrapper that prevents redirect-based SSRF bypasses
+async function safeFetch(url: string, options?: RequestInit): Promise<Response> {
+  const response = await fetch(url, { ...options, redirect: "manual" });
+  
+  // If redirect, validate the redirect target
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    if (location) {
+      const redirectUrl = new URL(location, url).toString();
+      const validation = isValidExternalUrl(redirectUrl);
+      if (!validation.valid) {
+        throw new Error(`Redirect blocked: ${validation.error}`);
+      }
+      // Follow the validated redirect
+      return safeFetch(redirectUrl, options);
+    }
+  }
+  
+  return response;
 }
 
 interface AuditConfig {

@@ -104,15 +104,15 @@ function ApiErrorAlert({
           </div>
         )}
 
-        {error.fbtrace_id && (
+        {error.errorCategory && (
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
               Detalhes técnicos
             </summary>
             <div className="mt-2 p-2 rounded bg-muted/50 border border-border font-mono">
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Facebook Trace ID:</span>
-                <code className="text-foreground select-all">{error.fbtrace_id}</code>
+                <span className="text-muted-foreground">Categoria:</span>
+                <code className="text-foreground select-all">{error.errorCategory}</code>
               </div>
             </div>
           </details>

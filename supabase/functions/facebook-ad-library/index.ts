@@ -133,65 +133,53 @@ async function fetchFromAdLibrary(params: AdLibraryParams): Promise<FacebookAd[]
         const errorMessage = fbError.message || 'Unknown Facebook API error';
         const fbtraceId = fbError.fbtrace_id;
 
-        console.error('Facebook API Error:', JSON.stringify(fbError, null, 2));
+        // Log detailed error server-side only (never expose to client)
+        console.error('[INTERNAL] Facebook API Error:', JSON.stringify(fbError, null, 2));
 
-        // Critical token errors - must throw to fail the job properly
+        // Categorize errors with sanitized messages for client
         const criticalTokenErrors = [102, 190, 463, 467, 459];
         if (criticalTokenErrors.includes(errorCode)) {
-          console.error(`[CRITICAL] Token error detected - Code: ${errorCode}, Subcode: ${errorSubcode}`);
-          throw new Error(
-            `Token Error [${errorCode}]: ${errorMessage}` +
-              (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '')
-          );
+          console.error(`[CRITICAL] Token error - Code: ${errorCode}, Subcode: ${errorSubcode}, fbtrace_id: ${fbtraceId}`);
+          throw new Error('Token configuration error. Please check your API token settings.');
         }
 
         // Rate limit errors
         if (errorCode === 4 || errorCode === 17 || errorCode === 341) {
-          console.error(`[RATE_LIMIT] API rate limit reached - Code: ${errorCode}`);
-          throw new Error(
-            `Rate Limit Error [${errorCode}]: ${errorMessage}` +
-              (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '')
-          );
+          console.error(`[RATE_LIMIT] Code: ${errorCode}, fbtrace_id: ${fbtraceId}`);
+          throw new Error('Rate limit exceeded. Please try again in a few minutes.');
         }
 
         // Permission errors
         if (errorCode === 10 || errorCode === 200 || errorCode === 294) {
-          console.error(`[PERMISSION] Missing permission - Code: ${errorCode}`);
-          throw new Error(
-            `Permission Error [${errorCode}]: ${errorMessage}` +
-              (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '')
-          );
+          console.error(`[PERMISSION] Code: ${errorCode}, fbtrace_id: ${fbtraceId}`);
+          throw new Error('Permission denied. Please verify API permissions.');
         }
 
-        // Transient/unknown OAuthException (commonly intermittent on Meta side)
+        // Transient/unknown OAuthException
         const isTransient =
           errorCode === 1 || errorCode === 2 || fbError.is_transient === true || response.status >= 500;
 
         if (isTransient) {
-          const transientHint =
-            `Facebook API temporary error [${errorCode}]: ${errorMessage}` +
-            (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '');
+          console.warn(`[TRANSIENT] Code: ${errorCode}, fbtrace_id: ${fbtraceId}`);
 
           if (attempt < maxAttemptsPerVersion) {
-            console.warn(`[TRANSIENT] ${transientHint} → retrying...`);
+            console.warn(`[TRANSIENT] Retrying...`);
             await delay(350 * attempt);
             continue;
           }
 
           // Try fallback API version
           if (version !== versionsToTry[versionsToTry.length - 1]) {
-            console.warn(`[TRANSIENT] ${transientHint} → trying fallback API version...`);
+            console.warn(`[TRANSIENT] Trying fallback API version...`);
             break;
           }
 
-          throw new Error(`${transientHint}. Please try again in a few minutes.`);
+          throw new Error('The service is experiencing high demand. Please try again in a few minutes.');
         }
 
-        // Non-transient, unknown error
-        throw new Error(
-          `Facebook API Error [${errorCode}]: ${errorMessage}` +
-            (fbtraceId ? ` (fbtrace_id: ${fbtraceId})` : '')
-        );
+        // Non-transient, unknown error - sanitize message
+        console.error(`[UNKNOWN] Code: ${errorCode}, Message: ${errorMessage}, fbtrace_id: ${fbtraceId}`);
+        throw new Error('Unable to complete request. Please try again later.');
       }
 
       // Non-JSON or non-error body but not OK
@@ -413,8 +401,31 @@ serve(async (req) => {
     const body = await req.json();
     const { action, params } = body;
 
-    // Public endpoint to test token validity (no auth required)
+    // Token test endpoint - requires authentication
     if (action === 'test_token') {
+      // Require authentication
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Authentication required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const supabaseClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Log the access attempt
+      console.log(`[TOKEN-TEST] Authenticated request from user: ${user.id}`);
+
       if (!FACEBOOK_ACCESS_TOKEN) {
         return new Response(
           JSON.stringify({ 
@@ -434,34 +445,30 @@ serve(async (req) => {
       const data = await response.json();
       
       if (data.error) {
+        // Log detailed error server-side only
+        console.error(`[TOKEN-TEST] Error - Code: ${data.error.code}, Message: ${data.error.message}, fbtrace_id: ${data.error.fbtrace_id}`);
+        
+        // Return sanitized error to client (no fbtrace_id or token details)
         const errorCode = data.error.code;
-        const errorMessage = data.error.message;
-        const fbtraceId = data.error.fbtrace_id;
-        
-        console.log(`[TOKEN-TEST] Error - Code: ${errorCode}, Message: ${errorMessage}`);
-        
-        // Determine error type
-        let errorType = 'unknown';
+        let errorCategory = 'SERVICE_ERROR';
         if ([102, 190, 463, 467, 459].includes(errorCode)) {
-          errorType = 'token_invalid';
+          errorCategory = 'TOKEN_INVALID';
         } else if ([4, 17, 341].includes(errorCode)) {
-          errorType = 'rate_limit';
+          errorCategory = 'RATE_LIMIT';
         } else if ([10, 200, 294].includes(errorCode)) {
-          errorType = 'permission';
+          errorCategory = 'PERMISSION_DENIED';
         } else if (errorCode === 1 || errorCode === 2) {
-          errorType = 'transient';
+          errorCategory = 'TEMPORARY_ERROR';
         }
         
         return new Response(
           JSON.stringify({ 
             success: false, 
             configured: true,
-            error: errorMessage,
-            error_code: errorCode,
-            error_type: errorType,
-            fbtrace_id: fbtraceId,
-            token_length: FACEBOOK_ACCESS_TOKEN.length,
-            token_prefix: FACEBOOK_ACCESS_TOKEN.substring(0, 10) + '...'
+            error_category: errorCategory,
+            message: errorCategory === 'TEMPORARY_ERROR' 
+              ? 'The service is experiencing high demand. Please try again in a few minutes.'
+              : 'Unable to validate token. Please check configuration.'
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -473,10 +480,7 @@ serve(async (req) => {
         JSON.stringify({ 
           success: true, 
           configured: true,
-          message: 'Token is valid and working',
-          token_length: FACEBOOK_ACCESS_TOKEN.length,
-          token_prefix: FACEBOOK_ACCESS_TOKEN.substring(0, 10) + '...',
-          test_results: data.data?.length || 0
+          message: 'Token is valid and working'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
