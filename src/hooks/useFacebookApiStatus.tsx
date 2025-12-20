@@ -20,6 +20,9 @@ interface FacebookApiStatus {
     has_ads_read?: boolean;
     ad_library_http_status?: number;
     ad_library_working?: boolean;
+    ad_library_version?: string;
+    ad_library_attempt?: number;
+    test_ads_returned?: number;
     ad_library_error?: {
       code: number;
       type: string;
