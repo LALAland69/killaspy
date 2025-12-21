@@ -61,24 +61,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     // REFATORAÇÃO: Só atualiza se listener ainda não disparou
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      // Verifica se componente ainda está montado
-      if (!isMountedRef.current) return;
+    const initSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
 
-      // REFATORAÇÃO: Só atualiza se listener não já fez isso
-      // Evita race condition e estado duplicado
-      if (!hasInitializedRef.current) {
-        setSession(existingSession);
-        setUser(existingSession?.user ?? null);
-        setLoading(false);
-        hasInitializedRef.current = true;
+        const existingSession = data.session;
+
+        // Verifica se componente ainda está montado
+        if (!isMountedRef.current) return;
+
+        // REFATORAÇÃO: Só atualiza se listener não já fez isso
+        // Evita race condition e estado duplicado
+        if (!hasInitializedRef.current) {
+          setSession(existingSession);
+          setUser(existingSession?.user ?? null);
+          setLoading(false);
+          hasInitializedRef.current = true;
+        }
+
+        logger.info("AUTH", "Session check completed", {
+          hasSession: !!existingSession,
+          userId: existingSession?.user?.id,
+        });
+      } catch (e) {
+        if (!isMountedRef.current) return;
+
+        const error = e instanceof Error ? e : new Error("Unknown error");
+        logger.warn("AUTH", "Session check failed", {
+          error: error.message,
+        });
+
+        // Evita ficar preso em loading para sempre
+        if (!hasInitializedRef.current) {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          hasInitializedRef.current = true;
+        }
       }
+    };
 
-      logger.info("AUTH", "Session check completed", {
-        hasSession: !!existingSession,
-        userId: existingSession?.user?.id,
-      });
-    });
+    void initSession();
 
     return () => {
       isMountedRef.current = false;
