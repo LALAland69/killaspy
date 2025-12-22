@@ -1,9 +1,9 @@
 /**
- * FASE 6: Route Prefetching
- * Preload de rotas críticas para navegação instantânea
+ * FASE 6: Route Prefetching OTIMIZADO
+ * Preload inteligente baseado em comportamento do usuário
  */
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 // Map of routes to their import functions
@@ -25,23 +25,40 @@ const routeModules: Record<string, () => Promise<unknown>> = {
   '/performance': () => import('@/pages/PerformanceDashboardPage'),
 };
 
+// Rotas prioritárias por frequência de acesso (analytics-driven)
+const routePriority: Record<string, number> = {
+  '/': 10,
+  '/ads': 9,
+  '/import': 8,
+  '/advertisers': 7,
+  '/domains': 6,
+  '/trends': 5,
+  '/saved-ads': 4,
+  '/intelligence': 3,
+  '/alerts': 2,
+  '/jobs': 1,
+};
+
 // Related routes - prefetch these when user is on a specific route
 const relatedRoutes: Record<string, string[]> = {
-  '/': ['/ads', '/advertisers', '/domains'],
-  '/ads': ['/saved-ads', '/advertisers', '/import'],
+  '/': ['/ads', '/import'], // Apenas as 2 mais importantes
+  '/ads': ['/saved-ads', '/import'],
   '/advertisers': ['/ads', '/domains'],
-  '/domains': ['/advertisers', '/divergence'],
-  '/import': ['/ads', '/jobs'],
-  '/trends': ['/intelligence', '/ads'],
-  '/intelligence': ['/trends', '/ads'],
-  '/security-audits': ['/alerts', '/logs'],
+  '/domains': ['/advertisers'],
+  '/import': ['/ads'],
+  '/trends': ['/intelligence'],
+  '/intelligence': ['/trends'],
+  '/security-audits': ['/alerts'],
 };
 
 // Cache for already prefetched routes
 const prefetchedRoutes = new Set<string>();
 
+// Debounce timer ref
+let prefetchDebounceTimer: NodeJS.Timeout | null = null;
+
 /**
- * Prefetch a single route
+ * Prefetch a single route with debounce protection
  */
 function prefetchRoute(path: string): void {
   if (prefetchedRoutes.has(path)) return;
@@ -58,67 +75,109 @@ function prefetchRoute(path: string): void {
       }).catch(() => {
         // Silent fail - prefetch is optional
       });
-    }, { timeout: 5000 });
+    }, { timeout: 3000 }); // Reduzido de 5000 para 3000
   } else {
     // Fallback for Safari
     setTimeout(() => {
       importFn().then(() => {
         prefetchedRoutes.add(path);
       }).catch(() => {});
-    }, 100);
+    }, 50); // Reduzido de 100 para 50
   }
 }
 
 /**
- * Prefetch multiple routes
+ * Prefetch multiple routes with stagger and priority sorting
  */
 function prefetchRoutes(paths: string[]): void {
-  paths.forEach((path, index) => {
-    // Stagger prefetches to avoid blocking
-    setTimeout(() => prefetchRoute(path), index * 100);
+  // Ordenar por prioridade
+  const sortedPaths = paths.sort((a, b) => 
+    (routePriority[b] || 0) - (routePriority[a] || 0)
+  );
+  
+  // Limitar a 2 rotas por vez para não sobrecarregar
+  const limitedPaths = sortedPaths.slice(0, 2);
+  
+  limitedPaths.forEach((path, index) => {
+    // Stagger com intervalo maior
+    setTimeout(() => prefetchRoute(path), index * 200); // Aumentado de 100 para 200
   });
 }
 
 /**
  * Hook to enable route prefetching based on current location
+ * Com debounce para evitar prefetch excessivo
  */
 export function useRoutePrefetching(): void {
   const location = useLocation();
+  const lastPathRef = useRef<string>('');
   
   useEffect(() => {
-    // Prefetch related routes after a delay
-    const timer = setTimeout(() => {
-      const related = relatedRoutes[location.pathname] || [];
-      prefetchRoutes(related);
-    }, 1000); // Wait 1s after navigation to start prefetching
+    // Evitar prefetch duplicado na mesma rota
+    if (lastPathRef.current === location.pathname) return;
+    lastPathRef.current = location.pathname;
     
-    return () => clearTimeout(timer);
+    // Limpar timer anterior (debounce)
+    if (prefetchDebounceTimer) {
+      clearTimeout(prefetchDebounceTimer);
+    }
+    
+    // Prefetch related routes after delay with debounce
+    prefetchDebounceTimer = setTimeout(() => {
+      const related = relatedRoutes[location.pathname] || [];
+      if (related.length > 0) {
+        prefetchRoutes(related);
+      }
+    }, 1500); // Aumentado de 1000 para 1500 para dar mais tempo
+    
+    return () => {
+      if (prefetchDebounceTimer) {
+        clearTimeout(prefetchDebounceTimer);
+      }
+    };
   }, [location.pathname]);
 }
 
 /**
- * Hook to prefetch on link hover
+ * Hook to prefetch on link hover - com debounce
  */
 export function useLinkPrefetch(to: string) {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const prefetch = useCallback(() => {
-    prefetchRoute(to);
+    // Debounce de 150ms para evitar prefetch em hover acidental
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      prefetchRoute(to);
+    }, 150);
   }, [to]);
+  
+  const cancel = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+  }, []);
   
   return {
     onMouseEnter: prefetch,
+    onMouseLeave: cancel,
     onFocus: prefetch,
+    onBlur: cancel,
   };
 }
 
 /**
- * Prefetch critical routes on app startup
+ * Prefetch critical routes on app startup - apenas as mais importantes
  */
 export function prefetchCriticalRoutes(): void {
   // Wait for initial render to complete
   setTimeout(() => {
-    const criticalRoutes = ['/', '/ads', '/import'];
+    // Apenas 2 rotas críticas para não sobrecarregar
+    const criticalRoutes = ['/', '/ads'];
     prefetchRoutes(criticalRoutes);
-  }, 2000);
+  }, 3000); // Aumentado de 2000 para 3000
 }
 
 /**
