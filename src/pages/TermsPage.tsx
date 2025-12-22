@@ -1,10 +1,36 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Eye, ArrowLeft } from "lucide-react";
+import { SEOHead, createWebPageJsonLd, organizationJsonLd } from "@/components/seo/SEOHead";
 
 export default function TermsPage() {
+  const seoData = {
+    title: "Termos de Uso | KillaSpy - Plataforma de Inteligência Competitiva",
+    description: "Leia nossos Termos de Uso. Entenda as regras de uso da plataforma KillaSpy, conformidade com Facebook Ad Library API e direitos do usuário.",
+    canonicalUrl: "https://killaspy.online/termos",
+  };
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      organizationJsonLd,
+      createWebPageJsonLd(
+        "Termos de Uso",
+        seoData.description,
+        seoData.canonicalUrl,
+        "2025-12-22"
+      )
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        title={seoData.title}
+        description={seoData.description}
+        canonicalUrl={seoData.canonicalUrl}
+        jsonLd={jsonLd}
+      />
       {/* Header */}
       <header className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
