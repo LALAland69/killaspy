@@ -22,6 +22,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import FacebookApiStatusBanner from '@/components/ads/FacebookApiStatusBanner';
 
 interface JobRun {
   id: string;
@@ -141,6 +142,9 @@ export default function ScrapingDashboardPage() {
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-6 space-y-6">
+        {/* Facebook API Status Banner */}
+        <FacebookApiStatusBanner />
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-1">

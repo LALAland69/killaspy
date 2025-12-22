@@ -13,6 +13,7 @@ interface FacebookApiStatus {
     token_length?: number;
     token_prefix?: string;
     token_type?: string;
+    token_format?: string;
     app_id?: string;
     is_valid?: boolean;
     scopes?: string[];

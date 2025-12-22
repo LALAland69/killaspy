@@ -10,6 +10,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDebounce } from '@/hooks/useDebounce';
 import { toast } from 'sonner';
+import FacebookApiStatusBanner from '@/components/ads/FacebookApiStatusBanner';
 
 export default function AdsDiscoveryPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,6 +124,9 @@ export default function AdsDiscoveryPage() {
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-6 space-y-6">
+        {/* Facebook API Status Banner */}
+        <FacebookApiStatusBanner />
+
         {/* Header */}
         <div className="space-y-2">
           <div className="flex items-center gap-3">

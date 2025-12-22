@@ -45,6 +45,7 @@ const InstallPage = lazy(() => import("./pages/InstallPage"));
 const PWATestPage = lazy(() => import("./pages/PWATestPage"));
 const AdsDiscoveryPage = lazy(() => import("./pages/AdsDiscoveryPage"));
 const ScrapingDashboardPage = lazy(() => import("./pages/ScrapingDashboardPage"));
+const FacebookSetupPage = lazy(() => import("./pages/FacebookSetupPage"));
 
 // Navigation logger component with prefetching
 function NavigationLogger() {
@@ -138,6 +139,7 @@ const App = () => (
                 <Route path="/performance" element={<LazyProtectedRoute><PerformanceDashboardPage /></LazyProtectedRoute>} />
                 <Route path="/discovery" element={<LazyProtectedRoute><AdsDiscoveryPage /></LazyProtectedRoute>} />
                 <Route path="/scraping" element={<LazyProtectedRoute><ScrapingDashboardPage /></LazyProtectedRoute>} />
+                <Route path="/facebook-setup" element={<LazyProtectedRoute><FacebookSetupPage /></LazyProtectedRoute>} />
                 
                 <Route path="*" element={<NotFound />} />
               </Routes>
