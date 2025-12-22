@@ -9,11 +9,13 @@ import {
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/lib/logger";
+import { toast } from "@/hooks/use-toast";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isReconnecting: boolean;
   signUp: (
     email: string,
     password: string,
@@ -28,15 +30,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Retry com backoff exponencial
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Unknown error");
+      
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, attempt); // 1s, 2s, 4s
+        logger.warn("AUTH", `Retry attempt ${attempt + 1}/${maxRetries}`, { 
+          delay: `${delay}ms`,
+          error: lastError.message 
+        });
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
-  // REFATORAÇÃO: Ref para controlar se listener já atualizou o estado
-  // Evita race condition entre getSession e onAuthStateChange
+  // Refs para controle de estado
   const hasInitializedRef = useRef(false);
   const isMountedRef = useRef(true);
+  const retryCountRef = useRef(0);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -44,19 +75,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // SAFETY: Timeout para garantir que loading nunca fica preso
     const safetyTimeout = setTimeout(() => {
       if (isMountedRef.current && !hasInitializedRef.current) {
-        logger.warn("AUTH", "Safety timeout triggered - forcing loading to false");
-        setSession(null);
-        setUser(null);
-        setLoading(false);
-        hasInitializedRef.current = true;
+        logger.warn("AUTH", "Safety timeout triggered - starting reconnection");
+        setIsReconnecting(true);
+        
+        toast({
+          title: "Reconectando...",
+          description: "Tentando restabelecer conexão com o servidor.",
+          variant: "default",
+        });
+
+        // Tentar reconectar com retry
+        retryWithBackoff(async () => {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          return data.session;
+        }, 3, 1000)
+          .then((session) => {
+            if (!isMountedRef.current) return;
+            
+            setSession(session);
+            setUser(session?.user ?? null);
+            setLoading(false);
+            setIsReconnecting(false);
+            hasInitializedRef.current = true;
+            retryCountRef.current = 0;
+
+            toast({
+              title: "Conexão restabelecida",
+              description: "Você está conectado novamente.",
+              variant: "default",
+            });
+          })
+          .catch(() => {
+            if (!isMountedRef.current) return;
+            
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+            setIsReconnecting(false);
+            hasInitializedRef.current = true;
+
+            toast({
+              title: "Falha na conexão",
+              description: "Não foi possível conectar. Faça login novamente.",
+              variant: "destructive",
+            });
+          });
       }
-    }, 5000); // 5 segundos máximo
+    }, 5000); // 5 segundos antes de iniciar retry
 
     // Set up auth state listener FIRST
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      // REFATORAÇÃO: Verifica se componente ainda está montado
       if (!isMountedRef.current) return;
 
       logger.auth(event, !!currentSession, {
@@ -67,21 +138,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       setLoading(false);
+      setIsReconnecting(false);
       hasInitializedRef.current = true;
     });
 
-    // THEN check for existing session
+    // THEN check for existing session with retry
     const initSession = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        const result = await retryWithBackoff(async () => {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          return data;
+        }, 3, 500);
 
-        const existingSession = data.session;
+        const existingSession = result.session;
 
-        // Verifica se componente ainda está montado
         if (!isMountedRef.current) return;
 
-        // Só atualiza se listener não já fez isso
         if (!hasInitializedRef.current) {
           setSession(existingSession);
           setUser(existingSession?.user ?? null);
@@ -97,11 +170,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isMountedRef.current) return;
 
         const error = e instanceof Error ? e : new Error("Unknown error");
-        logger.warn("AUTH", "Session check failed", {
+        logger.warn("AUTH", "Session check failed after retries", {
           error: error.message,
         });
 
-        // Evita ficar preso em loading para sempre
         if (!hasInitializedRef.current) {
           setSession(null);
           setUser(null);
@@ -202,7 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, signUp, signIn, signOut }}
+      value={{ user, session, loading, isReconnecting, signUp, signIn, signOut }}
     >
       {children}
     </AuthContext.Provider>

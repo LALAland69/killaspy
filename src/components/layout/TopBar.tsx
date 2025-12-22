@@ -1,4 +1,4 @@
-import { Database, User, LogOut, Bell, Settings, Menu, X, FileText, Gauge } from "lucide-react";
+import { Database, User, LogOut, Bell, Settings, Menu, X, FileText, Gauge, Loader2, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AlertsDropdown } from "@/components/alerts/AlertsDropdown";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
@@ -23,10 +23,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
 
 export function TopBar() {
   const location = useLocation();
-  const { user, signOut } = useAuth();
+  const { user, signOut, isReconnecting } = useAuth();
   const { t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -172,6 +173,14 @@ export function TopBar() {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        {/* Reconnecting indicator */}
+        {isReconnecting && (
+          <Badge variant="outline" className="gap-1 animate-pulse border-yellow-500/50 text-yellow-500">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span className="hidden sm:inline">Reconectando...</span>
+          </Badge>
+        )}
+        
         <PWAStatusIndicator />
         <LanguageSwitcher />
         <AlertsDropdown />
