@@ -642,8 +642,52 @@ serve(async (req) => {
     const bodyText = await req.text();
     const body = bodyText ? JSON.parse(bodyText) : {};
     
-    // Public endpoint to test token validity (no auth required)
+    // SECURITY: Token testing endpoint - requires authentication
+    // Only authenticated users can test token status to prevent information disclosure
     if (body.action === "test_token") {
+      const authHeader = req.headers.get("authorization");
+      
+      // Require authentication for this sensitive endpoint
+      if (!authHeader) {
+        console.log("[TOKEN-TEST] Unauthorized - no auth header");
+        return new Response(
+          JSON.stringify({ error: "Unauthorized", message: "Authentication required" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Verify JWT token
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+      const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+      
+      try {
+        const token = authHeader.replace("Bearer ", "");
+        const verifyResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "apikey": SUPABASE_ANON_KEY || ""
+          }
+        });
+        
+        if (!verifyResponse.ok) {
+          console.log("[TOKEN-TEST] Unauthorized - invalid JWT");
+          return new Response(
+            JSON.stringify({ error: "Unauthorized", message: "Invalid token" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        const user = await verifyResponse.json();
+        console.log(`[TOKEN-TEST] Authenticated user: ${user.id}`);
+      } catch (err) {
+        console.log("[TOKEN-TEST] Auth error:", err);
+        return new Response(
+          JSON.stringify({ error: "Unauthorized", message: "Authentication failed" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // User is authenticated - proceed with token test
       if (!FACEBOOK_ACCESS_TOKEN) {
         return new Response(
           JSON.stringify({ 
@@ -665,7 +709,6 @@ serve(async (req) => {
       if (data.error) {
         const errorCode = data.error.code;
         const errorMessage = data.error.message;
-        const fbtraceId = data.error.fbtrace_id;
         
         console.log(`[TOKEN-TEST] Error - Code: ${errorCode}, Message: ${errorMessage}`);
         
@@ -681,16 +724,14 @@ serve(async (req) => {
           errorType = "transient";
         }
         
+        // SECURITY: Return minimal info - no token prefix or length
         return new Response(
           JSON.stringify({ 
             success: false, 
             configured: true,
-            error: errorMessage,
+            error: errorType === "transient" ? "Temporary Facebook API error" : "API error occurred",
             error_code: errorCode,
-            error_type: errorType,
-            fbtrace_id: fbtraceId,
-            token_length: FACEBOOK_ACCESS_TOKEN.length,
-            token_prefix: FACEBOOK_ACCESS_TOKEN.substring(0, 10) + "..."
+            error_type: errorType
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -698,14 +739,12 @@ serve(async (req) => {
       
       console.log(`[TOKEN-TEST] Success - Token is valid, returned ${data.data?.length || 0} ads`);
       
+      // SECURITY: Return minimal info on success
       return new Response(
         JSON.stringify({ 
           success: true, 
           configured: true,
-          message: "Token is valid and working",
-          token_length: FACEBOOK_ACCESS_TOKEN.length,
-          token_prefix: FACEBOOK_ACCESS_TOKEN.substring(0, 10) + "...",
-          test_results: data.data?.length || 0
+          message: "Token is valid and working"
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
