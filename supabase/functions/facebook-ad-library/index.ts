@@ -19,7 +19,13 @@ const corsHeaders = {
 };
 
 // Environment variables
-const FACEBOOK_ACCESS_TOKEN = Deno.env.get('FACEBOOK_ACCESS_TOKEN');
+const FACEBOOK_APP_ID = Deno.env.get('FACEBOOK_APP_ID');
+const FACEBOOK_APP_SECRET = Deno.env.get('FACEBOOK_APP_SECRET');
+const FACEBOOK_ACCESS_TOKEN_ENV = Deno.env.get('FACEBOOK_ACCESS_TOKEN');
+// Build token in format APP_ID|APP_SECRET (permanent token)
+const FACEBOOK_ACCESS_TOKEN = FACEBOOK_APP_ID && FACEBOOK_APP_SECRET 
+  ? `${FACEBOOK_APP_ID}|${FACEBOOK_APP_SECRET}` 
+  : FACEBOOK_ACCESS_TOKEN_ENV;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
