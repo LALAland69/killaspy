@@ -41,6 +41,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     isMountedRef.current = true;
 
+    // SAFETY: Timeout para garantir que loading nunca fica preso
+    const safetyTimeout = setTimeout(() => {
+      if (isMountedRef.current && !hasInitializedRef.current) {
+        logger.warn("AUTH", "Safety timeout triggered - forcing loading to false");
+        setSession(null);
+        setUser(null);
+        setLoading(false);
+        hasInitializedRef.current = true;
+      }
+    }, 5000); // 5 segundos máximo
+
     // Set up auth state listener FIRST
     const {
       data: { subscription },
@@ -60,7 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // THEN check for existing session
-    // REFATORAÇÃO: Só atualiza se listener ainda não disparou
     const initSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
@@ -71,8 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Verifica se componente ainda está montado
         if (!isMountedRef.current) return;
 
-        // REFATORAÇÃO: Só atualiza se listener não já fez isso
-        // Evita race condition e estado duplicado
+        // Só atualiza se listener não já fez isso
         if (!hasInitializedRef.current) {
           setSession(existingSession);
           setUser(existingSession?.user ?? null);
@@ -106,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMountedRef.current = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
