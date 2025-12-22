@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import { SEOHead, organizationJsonLd } from "@/components/seo/SEOHead";
 import { 
   Eye, 
   Target, 
@@ -23,6 +24,51 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
+
+// SEO configuration
+const seoConfig = {
+  title: "KillaSpy - Espione Anúncios do Facebook Ads e Descubra Estratégias Vencedoras",
+  description: "Plataforma de inteligência competitiva para análise de anúncios. Monitore concorrentes, detecte winning ads e descubra estratégias de marketing digital.",
+  canonicalUrl: "https://killaspy.online/pagina-de-vendas",
+};
+
+const websiteJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "KillaSpy",
+  "url": "https://killaspy.online",
+  "description": seoConfig.description,
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://killaspy.online/ads?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+};
+
+const productJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "KillaSpy",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "AggregateOffer",
+    "lowPrice": "297",
+    "highPrice": "1497",
+    "priceCurrency": "BRL",
+    "offerCount": "3"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.9",
+    "ratingCount": "127"
+  }
+};
+
+const combinedJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [organizationJsonLd, websiteJsonLd, productJsonLd]
+};
 
 // Hook para detectar quando elemento está visível na viewport
 function useInView(threshold = 0.1) {
@@ -209,6 +255,12 @@ export default function SalesPage() {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
+      <SEOHead
+        title={seoConfig.title}
+        description={seoConfig.description}
+        canonicalUrl={seoConfig.canonicalUrl}
+        jsonLd={combinedJsonLd}
+      />
       {/* Header */}
       <header className="border-b border-border/40 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">

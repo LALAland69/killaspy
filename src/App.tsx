@@ -14,11 +14,12 @@ import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/hooks/useNetworkStatus";
 import { useRoutePrefetching, prefetchCriticalRoutes } from "@/lib/routePrefetch";
 
-// Eager load critical pages (avoid chunk-load issues on public legal routes)
+// Eager load critical public pages (avoid chunk-load issues)
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
+import SalesPage from "./pages/SalesPage";
 
 // Lazy load all other pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -40,7 +41,6 @@ const AuditDetailPage = lazy(() => import("./pages/AuditDetailPage"));
 const LogsPage = lazy(() => import("./pages/LogsPage"));
 const HealthCheckPage = lazy(() => import("./pages/HealthCheckPage"));
 const PerformanceDashboardPage = lazy(() => import("./pages/PerformanceDashboardPage"));
-const SalesPage = lazy(() => import("./pages/SalesPage"));
 const InstallPage = lazy(() => import("./pages/InstallPage"));
 const PWATestPage = lazy(() => import("./pages/PWATestPage"));
 const AdsDiscoveryPage = lazy(() => import("./pages/AdsDiscoveryPage"));
@@ -110,10 +110,9 @@ const App = () => (
               <OfflineIndicator />
               <Routes>
                 {/* Public pages */}
-                <Route path="/pagina-de-vendas" element={<LazyRoute><SalesPage /></LazyRoute>} />
+                <Route path="/pagina-de-vendas" element={<SalesPage />} />
                 <Route path="/privacidade" element={<PrivacyPage />} />
                 <Route path="/termos" element={<TermsPage />} />
-                <Route path="/install" element={<LazyRoute><InstallPage /></LazyRoute>} />
                 <Route path="/install" element={<LazyRoute><InstallPage /></LazyRoute>} />
                 <Route path="/pwa-test" element={<LazyRoute><PWATestPage /></LazyRoute>} />
                 <Route path="/auth" element={<Auth />} />
