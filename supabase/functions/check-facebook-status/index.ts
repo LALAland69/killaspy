@@ -47,16 +47,19 @@ async function checkFacebookApiStatus(): Promise<StatusCheckResult> {
 
     for (const version of versionsToTry) {
       for (let attempt = 1; attempt <= maxAttemptsPerVersion; attempt++) {
-        const qp = new URLSearchParams({
-          access_token: accessToken,
-          // Graph API expects a JSON array string: ["US"]
-          ad_reached_countries: JSON.stringify(["US"]),
-          search_terms: "test",
-          limit: "1",
-          fields: "id",
-        });
+        // Build URL with proper encoding for Ad Library API
+        const baseUrl = `https://graph.facebook.com/${version}/ads_archive`;
+        const params = new URLSearchParams();
+        params.append('access_token', accessToken);
+        params.append('ad_reached_countries', '["BR"]');
+        params.append('search_terms', 'coca cola');
+        params.append('ad_active_status', 'ALL');
+        params.append('limit', '3');
+        params.append('fields', 'id,page_name,ad_snapshot_url');
 
-        const adLibraryUrl = `https://graph.facebook.com/${version}/ads_archive?${qp.toString()}`;
+        const adLibraryUrl = `${baseUrl}?${params.toString()}`;
+        console.log(`[FB-CHECK] Testing ${version}, attempt ${attempt}: ${adLibraryUrl.replace(accessToken, '[REDACTED]')}`);
+        
         const adLibResponse = await fetch(adLibraryUrl);
 
         lastAdLibStatus = adLibResponse.status;
