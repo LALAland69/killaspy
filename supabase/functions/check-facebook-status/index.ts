@@ -34,51 +34,12 @@ async function checkFacebookApiStatus(): Promise<StatusCheckResult> {
   const diagnostics: Record<string, unknown> = {
     token_length: accessToken.length,
     token_prefix: accessToken.substring(0, 12) + "...",
+    token_format: appId && appSecret ? "APP_ID|APP_SECRET" : "legacy",
   };
 
   try {
-    // Step 1: Check token debug info
-    const debugResponse = await fetch(
-      `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${accessToken}`
-    );
-    const debugData = await debugResponse.json();
-    
-    if (debugData.data) {
-      diagnostics.token_type = debugData.data.type;
-      diagnostics.app_id = debugData.data.app_id;
-      diagnostics.is_valid = debugData.data.is_valid;
-      diagnostics.scopes = debugData.data.scopes;
-      diagnostics.expires_at = debugData.data.expires_at 
-        ? new Date(debugData.data.expires_at * 1000).toISOString() 
-        : "never";
-      
-      // Check if ads_read permission is present
-      const hasAdsRead = debugData.data.scopes?.includes("ads_read");
-      diagnostics.has_ads_read = hasAdsRead;
-      
-      if (!hasAdsRead) {
-        return {
-          success: false,
-          error_type: "permission",
-          message: "Token não possui permissão 'ads_read'. Regenere o token com esta permissão.",
-          checked_at: new Date().toISOString(),
-          diagnostics,
-        };
-      }
-      
-      if (!debugData.data.is_valid) {
-        return {
-          success: false,
-          error_type: "invalid_token",
-          message: "Token inválido ou expirado",
-          checked_at: new Date().toISOString(),
-          diagnostics,
-        };
-      }
-    }
-
-    // Step 2: Test the Ad Library endpoint directly (with retries + fallback versions)
-    const versionsToTry = ["v21.0", "v24.0"];
+    // Test the Ad Library endpoint directly (PUBLIC API - no permissions needed!)
+    const versionsToTry = ["v18.0", "v21.0", "v24.0"];
     const maxAttemptsPerVersion = 2;
 
     let lastAdLibStatus: number | undefined;
