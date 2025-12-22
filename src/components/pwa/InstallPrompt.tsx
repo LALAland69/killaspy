@@ -8,7 +8,7 @@ import { Download, X, Share, Plus, Smartphone, Monitor, CheckCircle } from 'luci
 interface InstallPromptProps {
   /**
    * Delay in milliseconds before showing the prompt
-   * @default 30000 (30 seconds)
+   * @default 10000 (10 seconds - reduced for better conversion)
    */
   showDelay?: number;
   /**
@@ -18,7 +18,7 @@ interface InstallPromptProps {
   minPageViews?: number;
 }
 
-export function InstallPrompt({ showDelay = 30000, minPageViews = 2 }: InstallPromptProps) {
+export function InstallPrompt({ showDelay = 10000, minPageViews = 2 }: InstallPromptProps) {
   const [showBanner, setShowBanner] = useState(false);
   const [showIOSDialog, setShowIOSDialog] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -92,29 +92,32 @@ export function InstallPrompt({ showDelay = 30000, minPageViews = 2 }: InstallPr
 
   return (
     <>
-      {/* Install Banner */}
+      {/* Install Banner - com animação melhorada */}
       {showBanner && (
-        <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom-5 md:left-auto md:right-4 md:w-96">
-          <Card className="border-primary/20 bg-card/95 backdrop-blur-sm shadow-lg">
+        <div className="fixed bottom-4 left-4 right-4 z-50 animate-fade-in md:left-auto md:right-4 md:w-96">
+          <Card className="border-primary/20 bg-card/95 backdrop-blur-sm shadow-xl hover:shadow-2xl transition-shadow duration-300">
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  {platform === 'ios' || platform === 'android' ? (
-                    <Smartphone className="h-8 w-8 text-primary" />
-                  ) : (
-                    <Monitor className="h-8 w-8 text-primary" />
-                  )}
+                  <div className="relative">
+                    {platform === 'ios' || platform === 'android' ? (
+                      <Smartphone className="h-10 w-10 text-primary animate-pulse" />
+                    ) : (
+                      <Monitor className="h-10 w-10 text-primary animate-pulse" />
+                    )}
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />
+                  </div>
                   <div>
-                    <CardTitle className="text-base">Instalar KillaSpy</CardTitle>
+                    <CardTitle className="text-lg font-bold">Instalar KillaSpy</CardTitle>
                     <CardDescription className="text-xs">
-                      Acesso rápido direto da sua tela inicial
+                      Acesso instantâneo da sua tela inicial
                     </CardDescription>
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 shrink-0"
+                  className="h-6 w-6 shrink-0 hover:bg-destructive/10"
                   onClick={handleDismiss}
                 >
                   <X className="h-4 w-4" />
@@ -122,16 +125,29 @@ export function InstallPrompt({ showDelay = 30000, minPageViews = 2 }: InstallPr
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CheckCircle className="h-3 w-3 text-green-500" />
-                  <span>Funciona offline</span>
-                  <CheckCircle className="h-3 w-3 text-green-500" />
-                  <span>Atualizações automáticas</span>
+              <div className="flex flex-col gap-3">
+                {/* Benefícios destacados */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    <span>Funciona offline</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    <span>Carrega mais rápido</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    <span>Notificações push</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    <span>Atualiza sozinho</span>
+                  </div>
                 </div>
-                <Button onClick={handleInstall} className="w-full" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Instalar Agora
+                <Button onClick={handleInstall} className="w-full group" size="sm">
+                  <Download className="h-4 w-4 mr-2 group-hover:animate-bounce" />
+                  Instalar Agora - É Grátis!
                 </Button>
               </div>
             </CardContent>

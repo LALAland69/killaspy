@@ -30,11 +30,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Retry com backoff exponencial
+// Retry com backoff exponencial - otimizado para resposta rápida
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
-  baseDelay: number = 1000
+  baseDelay: number = 500 // Reduzido de 1000ms para 500ms
 ): Promise<T> {
   let lastError: Error | null = null;
   
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     isMountedRef.current = true;
 
-    // SAFETY: Timeout para garantir que loading nunca fica preso
+    // SAFETY: Timeout reduzido para 2s para feedback mais rápido
     const safetyTimeout = setTimeout(() => {
       if (isMountedRef.current && !hasInitializedRef.current) {
         logger.warn("AUTH", "Safety timeout triggered - starting reconnection");
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
           });
       }
-    }, 5000); // 5 segundos antes de iniciar retry
+    }, 2000); // Reduzido de 5s para 2s para feedback mais rápido
 
     // Set up auth state listener FIRST
     const {
