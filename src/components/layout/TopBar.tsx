@@ -34,6 +34,7 @@ export function TopBar() {
   const mainNavigation = [
     { name: t('nav.trends'), href: "/trends" },
     { name: t('nav.adLibrary'), href: "/ads" },
+    { name: "Discovery", href: "/discovery" },
     { name: t('nav.savedAds'), href: "/saved-ads" },
     { name: t('nav.divergence'), href: "/divergence" },
     { name: t('nav.intelligence'), href: "/intelligence" },
@@ -45,6 +46,7 @@ export function TopBar() {
     { name: t('nav.domains'), href: "/domains" },
     { name: t('nav.audit'), href: "/security-audits" },
     { name: t('nav.import'), href: "/import" },
+    { name: "Scraping", href: "/scraping" },
     { name: t('nav.jobs'), href: "/jobs" },
     { name: t('nav.alerts'), href: "/alerts" },
     { name: t('nav.logs'), href: "/logs" },
