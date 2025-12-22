@@ -14,9 +14,11 @@ import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/hooks/useNetworkStatus";
 import { useRoutePrefetching, prefetchCriticalRoutes } from "@/lib/routePrefetch";
 
-// Eager load critical pages
+// Eager load critical pages (avoid chunk-load issues on public legal routes)
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 
 // Lazy load all other pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
