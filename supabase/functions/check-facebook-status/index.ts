@@ -15,13 +15,18 @@ interface StatusCheckResult {
 }
 
 async function checkFacebookApiStatus(): Promise<StatusCheckResult> {
-  const accessToken = Deno.env.get("FACEBOOK_ACCESS_TOKEN");
+  const appId = Deno.env.get("FACEBOOK_APP_ID");
+  const appSecret = Deno.env.get("FACEBOOK_APP_SECRET");
+  const fallbackToken = Deno.env.get("FACEBOOK_ACCESS_TOKEN");
+  
+  // Build token in format APP_ID|APP_SECRET (permanent token)
+  const accessToken = appId && appSecret ? `${appId}|${appSecret}` : fallbackToken;
   
   if (!accessToken) {
     return {
       success: false,
       error_type: "config",
-      message: "Token não configurado",
+      message: "Token não configurado. Configure FACEBOOK_APP_ID e FACEBOOK_APP_SECRET.",
       checked_at: new Date().toISOString(),
     };
   }
