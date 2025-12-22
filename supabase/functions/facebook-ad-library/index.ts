@@ -1,11 +1,74 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
+
+// ============= INPUT VALIDATION SCHEMAS =============
+
+// Regex pattern for safe string input (alphanumeric, spaces, basic punctuation)
+const safeStringPattern = /^[\p{L}\p{N}\s\-_.,!?'"():@#&]+$/u;
+
+// Country code validation (ISO 3166-1 alpha-2)
+const countryCodeSchema = z.string()
+  .length(2)
+  .regex(/^[A-Z]{2}$/, 'Invalid country code format');
+
+// Facebook Page ID validation (numeric string)
+const pageIdSchema = z.string()
+  .min(1)
+  .max(30)
+  .regex(/^\d+$/, 'Page ID must be numeric');
+
+// Ad Library search parameters validation schema
+const adLibraryParamsSchema = z.object({
+  search_terms: z.string()
+    .max(500, 'Search terms too long')
+    .regex(safeStringPattern, 'Search terms contain invalid characters')
+    .optional(),
+  ad_type: z.enum(['ALL', 'POLITICAL_AND_ISSUE_ADS', 'HOUSING_ADS', 'EMPLOYMENT_ADS', 'CREDIT_ADS'])
+    .optional(),
+  ad_reached_countries: z.array(countryCodeSchema)
+    .max(20, 'Too many countries specified')
+    .optional(),
+  ad_active_status: z.enum(['ALL', 'ACTIVE', 'INACTIVE'])
+    .optional(),
+  search_page_ids: z.array(pageIdSchema)
+    .max(50, 'Too many page IDs specified')
+    .optional(),
+  limit: z.number()
+    .int()
+    .min(1)
+    .max(500)
+    .optional(),
+}).strict();
+
+// Validate and sanitize input parameters
+function validateAdLibraryParams(params: unknown): z.infer<typeof adLibraryParamsSchema> {
+  try {
+    // Handle undefined/null params
+    if (!params || typeof params !== 'object') {
+      return {};
+    }
+    
+    // Parse and validate with zod
+    const validated = adLibraryParamsSchema.parse(params);
+    
+    console.log('[VALIDATION] Input parameters validated successfully');
+    return validated;
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const errorMessages = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
+      console.error('[VALIDATION] Invalid parameters:', errorMessages);
+      throw new Error(`Invalid parameters: ${errorMessages}`);
+    }
+    throw error;
+  }
+}
 
 // Verify cron/scheduled request authenticity using service role key
 function isValidScheduledRequest(req: Request): boolean {
@@ -538,10 +601,14 @@ serve(async (req) => {
       throw new Error('User tenant not found');
     }
 
-    console.log('Params:', params);
+    console.log('Raw params:', JSON.stringify(params));
+
+    // Validate input parameters
+    const validatedParams = validateAdLibraryParams(params);
+    console.log('Validated params:', JSON.stringify(validatedParams));
 
     if (action === 'search') {
-      const ads = await fetchFromAdLibrary(params);
+      const ads = await fetchFromAdLibrary(validatedParams);
       
       return new Response(
         JSON.stringify({ 
@@ -563,7 +630,7 @@ serve(async (req) => {
     }
 
     if (action === 'import') {
-      const ads = await fetchFromAdLibrary(params);
+      const ads = await fetchFromAdLibrary(validatedParams);
       const results = await processAndStoreAds(ads, profile.tenant_id, supabaseAdmin);
 
       await supabaseAdmin.from('job_runs').insert({

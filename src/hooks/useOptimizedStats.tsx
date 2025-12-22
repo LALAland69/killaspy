@@ -78,13 +78,25 @@ export function useOptimizedDashboardStats() {
 
 /**
  * Hook para refresh manual das stats do dashboard
+ * NOTA: Requer privilégios de admin para executar
  */
 export function useRefreshDashboardStats() {
   return useQuery({
     queryKey: ["refresh-dashboard-stats"],
     queryFn: async () => {
       const { error } = await supabase.rpc('refresh_dashboard_stats');
-      if (error) throw error;
+      if (error) {
+        // Handle authorization errors gracefully
+        if (error.message?.includes('Admin privileges required')) {
+          logger.warn("API", "Dashboard refresh requires admin privileges");
+          return { refreshed: false, reason: 'admin_required', timestamp: new Date().toISOString() };
+        }
+        if (error.message?.includes('Refresh already in progress')) {
+          logger.warn("API", "Dashboard refresh already in progress");
+          return { refreshed: false, reason: 'in_progress', timestamp: new Date().toISOString() };
+        }
+        throw error;
+      }
       return { refreshed: true, timestamp: new Date().toISOString() };
     },
     enabled: false, // Apenas executar manualmente
