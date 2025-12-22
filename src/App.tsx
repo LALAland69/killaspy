@@ -41,8 +41,6 @@ const LogsPage = lazy(() => import("./pages/LogsPage"));
 const HealthCheckPage = lazy(() => import("./pages/HealthCheckPage"));
 const PerformanceDashboardPage = lazy(() => import("./pages/PerformanceDashboardPage"));
 const SalesPage = lazy(() => import("./pages/SalesPage"));
-const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
-const TermsPage = lazy(() => import("./pages/TermsPage"));
 const InstallPage = lazy(() => import("./pages/InstallPage"));
 const PWATestPage = lazy(() => import("./pages/PWATestPage"));
 const AdsDiscoveryPage = lazy(() => import("./pages/AdsDiscoveryPage"));
@@ -113,8 +111,9 @@ const App = () => (
               <Routes>
                 {/* Public pages */}
                 <Route path="/pagina-de-vendas" element={<LazyRoute><SalesPage /></LazyRoute>} />
-                <Route path="/privacidade" element={<LazyRoute><PrivacyPage /></LazyRoute>} />
-                <Route path="/termos" element={<LazyRoute><TermsPage /></LazyRoute>} />
+                <Route path="/privacidade" element={<PrivacyPage />} />
+                <Route path="/termos" element={<TermsPage />} />
+                <Route path="/install" element={<LazyRoute><InstallPage /></LazyRoute>} />
                 <Route path="/install" element={<LazyRoute><InstallPage /></LazyRoute>} />
                 <Route path="/pwa-test" element={<LazyRoute><PWATestPage /></LazyRoute>} />
                 <Route path="/auth" element={<Auth />} />
