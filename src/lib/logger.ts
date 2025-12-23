@@ -1,7 +1,10 @@
 /**
  * Comprehensive logging system for KillaSpy
  * 
- * REFATORAÇÃO: ID generation mais seguro usando crypto API
+ * Features:
+ * - correlationId para rastrear sessão
+ * - Instrumentação de navegação e erros
+ * - Exportação para diagnóstico
  */
 import { toast } from "sonner";
 import { SECURITY } from "./constants";
@@ -10,16 +13,20 @@ export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LogEntry {
   id: string;
+  correlationId: string;
   timestamp: string;
   level: LogLevel;
   category: string;
   message: string;
   data?: unknown;
   stack?: string;
+  url?: string;
+  userAgent?: string;
 }
 
 const MAX_LOGS = SECURITY.MAX_LOG_ENTRIES;
 const STORAGE_KEY = "killaspy_logs";
+const CORRELATION_ID_KEY = "killaspy_correlation_id";
 
 // Error notification settings
 let errorNotificationsEnabled = true;
@@ -29,16 +36,30 @@ export function setErrorNotifications(enabled: boolean) {
 }
 
 /**
- * REFATORAÇÃO: Geração de ID mais segura
- * Usa crypto.randomUUID quando disponível, fallback para timestamp + random
+ * Generates or retrieves correlation ID for this session
+ */
+function getCorrelationId(): string {
+  if (typeof sessionStorage === "undefined") return "server";
+  
+  let id = sessionStorage.getItem(CORRELATION_ID_KEY);
+  if (!id) {
+    id = generateLogId();
+    sessionStorage.setItem(CORRELATION_ID_KEY, id);
+  }
+  return id;
+}
+
+export function getCurrentCorrelationId(): string {
+  return getCorrelationId();
+}
+
+/**
+ * Geração de ID segura usando crypto API
  */
 function generateLogId(): string {
-  // Usa crypto API se disponível (mais seguro)
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  
-  // REFATORAÇÃO: Fallback melhorado com mais entropia
   const timestamp = Date.now().toString(36);
   const randomPart = Math.random().toString(36).substring(2, 11);
   const randomPart2 = Math.random().toString(36).substring(2, 11);
@@ -119,14 +140,17 @@ class Logger {
   ): LogEntry {
     const entry: LogEntry = {
       id: generateLogId(),
+      correlationId: getCorrelationId(),
       timestamp: new Date().toISOString(),
       level,
       category,
       message,
       data,
+      url: typeof window !== "undefined" ? window.location.href : undefined,
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     };
 
-    // REFATORAÇÃO: Type-safe stack extraction
+    // Type-safe stack extraction
     if (
       level === "error" &&
       data &&
@@ -274,25 +298,61 @@ class Logger {
     return () => this.listeners.delete(listener);
   }
 
-  // Export logs as JSON
+  // Export logs as JSON with diagnostics
   exportLogs(): string {
-    return JSON.stringify(this.logs, null, 2);
+    const diagnostics = this.getDiagnostics();
+    return JSON.stringify({ diagnostics, logs: this.logs }, null, 2);
   }
 
   // Export logs as CSV
   exportLogsCSV(): string {
-    const headers = ["timestamp", "level", "category", "message", "data"];
+    const headers = ["timestamp", "correlationId", "level", "category", "message", "url", "data"];
     const rows = this.logs.map((log) => [
       log.timestamp,
+      log.correlationId,
       log.level,
       log.category,
       log.message,
+      log.url || "",
       JSON.stringify(log.data || ""),
     ]);
     return [
       headers.join(","),
       ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")),
     ].join("\n");
+  }
+
+  // Get client diagnostics
+  getDiagnostics(): Record<string, unknown> {
+    const nav = typeof navigator !== "undefined" ? navigator : null;
+    const win = typeof window !== "undefined" ? window : null;
+    const perf = typeof performance !== "undefined" ? performance : null;
+
+    return {
+      correlationId: getCorrelationId(),
+      exportedAt: new Date().toISOString(),
+      userAgent: nav?.userAgent,
+      language: nav?.language,
+      languages: nav?.languages,
+      cookieEnabled: nav?.cookieEnabled,
+      onLine: nav?.onLine,
+      hardwareConcurrency: nav?.hardwareConcurrency,
+      deviceMemory: (nav as Navigator & { deviceMemory?: number })?.deviceMemory,
+      platform: nav?.platform,
+      url: win?.location.href,
+      referrer: typeof document !== "undefined" ? document.referrer : undefined,
+      screenWidth: win?.screen?.width,
+      screenHeight: win?.screen?.height,
+      innerWidth: win?.innerWidth,
+      innerHeight: win?.innerHeight,
+      devicePixelRatio: win?.devicePixelRatio,
+      timezoneOffset: new Date().getTimezoneOffset(),
+      performanceNow: perf?.now(),
+      serviceWorkerController: nav?.serviceWorker?.controller ? "active" : "none",
+      logsCount: this.logs.length,
+      errorsCount: this.logs.filter((l) => l.level === "error").length,
+      warningsCount: this.logs.filter((l) => l.level === "warn").length,
+    };
   }
 }
 
@@ -314,5 +374,7 @@ export function useLogs() {
     clearLogs: () => logger.clearLogs(),
     exportJSON: () => logger.exportLogs(),
     exportCSV: () => logger.exportLogsCSV(),
+    getDiagnostics: () => logger.getDiagnostics(),
+    correlationId: getCurrentCorrelationId(),
   };
 }

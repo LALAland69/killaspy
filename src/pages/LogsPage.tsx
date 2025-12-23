@@ -55,10 +55,11 @@ const levelColors: Record<LogLevel, string> = {
 
 export default function LogsPage() {
   const { t } = useLanguage();
-  const { logs, clearLogs, exportJSON, exportCSV } = useLogs();
+  const { logs, clearLogs, exportJSON, exportCSV, getDiagnostics, correlationId } = useLogs();
   const [searchTerm, setSearchTerm] = useState("");
   const [levelFilter, setLevelFilter] = useState<LogLevel | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // Cloud hooks
   const exportToCloud = useExportLogsToCloud();
@@ -67,6 +68,9 @@ export default function LogsPage() {
 
   // Get unique categories
   const categories = Array.from(new Set(logs.map(log => log.category)));
+
+  // Diagnostics data
+  const diagnostics = getDiagnostics();
 
   // Filter logs
   const filteredLogs = logs.filter(log => {
@@ -114,14 +118,22 @@ export default function LogsPage() {
   return (
     <AppLayout>
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t('logs.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            {logs.length} total entries
+            {logs.length} entradas • Sessão: <code className="text-xs bg-muted px-1 rounded">{correlationId.slice(0, 8)}</code>
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant={showDiagnostics ? "secondary" : "outline"}
+            size="sm" 
+            onClick={() => setShowDiagnostics(!showDiagnostics)}
+          >
+            <Bug className="h-4 w-4 mr-2" />
+            Diagnóstico
+          </Button>
           <Button 
             variant="outline" 
             size="sm" 
@@ -149,6 +161,58 @@ export default function LogsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Diagnostics Panel */}
+      {showDiagnostics && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Bug className="h-4 w-4" />
+              Diagnóstico do Cliente
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+              <div>
+                <p className="text-muted-foreground">Correlation ID</p>
+                <p className="font-mono">{String(diagnostics.correlationId).slice(0, 8)}...</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Online</p>
+                <p>{diagnostics.onLine ? "✅ Sim" : "❌ Não"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Service Worker</p>
+                <p>{diagnostics.serviceWorkerController === "active" ? "✅ Ativo" : "⚠️ Inativo"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Memória (Device)</p>
+                <p>{diagnostics.deviceMemory ? `${diagnostics.deviceMemory} GB` : "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Tela</p>
+                <p>{String(diagnostics.screenWidth ?? '')}x{String(diagnostics.screenHeight ?? '')}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Viewport</p>
+                <p>{String(diagnostics.innerWidth ?? '')}x{String(diagnostics.innerHeight ?? '')}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Idioma</p>
+                <p>{String(diagnostics.language)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Plataforma</p>
+                <p>{String(diagnostics.platform)}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-muted-foreground text-xs mb-2">User Agent</p>
+              <p className="text-xs font-mono bg-muted p-2 rounded break-all">{String(diagnostics.userAgent)}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-4 gap-4">
