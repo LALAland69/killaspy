@@ -48,6 +48,8 @@ const PWATestPage = lazy(() => import("./pages/PWATestPage"));
 const AdsDiscoveryPage = lazy(() => import("./pages/AdsDiscoveryPage"));
 const ScrapingDashboardPage = lazy(() => import("./pages/ScrapingDashboardPage"));
 const FacebookSetupPage = lazy(() => import("./pages/FacebookSetupPage"));
+const DataSourcesPage = lazy(() => import("./pages/DataSourcesPage"));
+const AdSpyPage = lazy(() => import("./pages/AdSpyPage"));
 
 // Navigation logger component with prefetching
 function NavigationLogger() {
@@ -147,6 +149,8 @@ const App = () => (
                 <Route path="/discovery" element={<LazyProtectedRoute><AdsDiscoveryPage /></LazyProtectedRoute>} />
                 <Route path="/scraping" element={<LazyProtectedRoute><ScrapingDashboardPage /></LazyProtectedRoute>} />
                 <Route path="/facebook-setup" element={<LazyProtectedRoute><FacebookSetupPage /></LazyProtectedRoute>} />
+                <Route path="/data-sources" element={<LazyProtectedRoute><DataSourcesPage /></LazyProtectedRoute>} />
+                <Route path="/spy" element={<LazyProtectedRoute><AdSpyPage /></LazyProtectedRoute>} />
                 
                 <Route path="*" element={<NotFound />} />
               </Routes>
