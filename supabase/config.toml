@@ -38,3 +38,6 @@ verify_jwt = true
 
 [functions.scraper-webhook]
 verify_jwt = false
+
+[functions.scrape-ad-library]
+verify_jwt = false
