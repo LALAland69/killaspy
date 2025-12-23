@@ -1,0 +1,18 @@
+# Render Blueprint - Deploy automático
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: worker
+    name: killaspy-scraper
+    env: node
+    rootDir: docs/external-scraper
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: WEBHOOK_URL
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: SCRAPER_ID
+        value: render-scraper-01
+    schedule: "0 */6 * * *"  # A cada 6 horas
