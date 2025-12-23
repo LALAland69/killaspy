@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Database, Eye, EyeOff, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Database, Eye, EyeOff, Loader2, RotateCcw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { z } from "zod";
 import {
   checkRateLimit,
@@ -14,6 +14,7 @@ import {
   securityCheck,
   logSecurityEvent,
 } from "@/lib/security";
+import { clearCacheAndReload } from "@/lib/pwaRecovery";
 
 // SECURITY: Enhanced auth schema with stricter validation
 const authSchema = z.object({
@@ -48,6 +49,13 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const handleClearCacheAndReload = async () => {
+    toast({
+      title: "Limpando cache…",
+      description: "Vamos recarregar a página para destravar possíveis travamentos.",
+    });
+    await clearCacheAndReload({ reason: "manual_auth" });
+  };
   // SECURITY: Rate limiting for auth attempts
   const checkAuthRateLimit = useCallback(() => {
     const rateLimitKey = `auth_${email.toLowerCase()}`;
@@ -313,19 +321,31 @@ export default function Auth() {
             </Button>
           </form>
 
-          <div className="text-center">
-            <button
+          <div className="space-y-3">
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setErrors({});
+                }}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                {isLogin
+                  ? "Don't have an account? Sign up"
+                  : "Already have an account? Sign in"}
+              </button>
+            </div>
+
+            <Button
               type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setErrors({});
-              }}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              variant="outline"
+              className="w-full"
+              onClick={handleClearCacheAndReload}
             >
-              {isLogin
-                ? "Don't have an account? Sign up"
-                : "Already have an account? Sign in"}
-            </button>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Limpar cache e recarregar
+            </Button>
           </div>
         </div>
       </div>

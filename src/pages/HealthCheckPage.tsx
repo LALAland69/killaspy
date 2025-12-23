@@ -4,20 +4,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  Activity, 
-  CheckCircle2, 
-  XCircle, 
-  Loader2, 
+import {
+  Activity,
+  CheckCircle2,
+  XCircle,
+  Loader2,
   RefreshCw,
+  RotateCcw,
   Clock,
   Zap,
   Database,
   Globe,
-  Server
+  Server,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { clearCacheAndReload } from "@/lib/pwaRecovery";
 
 interface HealthCheckResult {
   name: string;
@@ -28,6 +31,8 @@ interface HealthCheckResult {
 }
 
 export default function HealthCheckPage() {
+  const { toast } = useToast();
+
   const [results, setResults] = useState<HealthCheckResult[]>([
     { name: "Facebook Ad Library API", status: "idle" },
     { name: "Firecrawl API", status: "idle" },
@@ -36,6 +41,13 @@ export default function HealthCheckPage() {
   ]);
   const [isRunning, setIsRunning] = useState(false);
 
+  const handleClearCacheAndReload = async () => {
+    toast({
+      title: "Limpando cache…",
+      description: "Vamos recarregar a página para destravar possíveis travamentos.",
+    });
+    await clearCacheAndReload({ reason: "manual_health" });
+  };
   // Recent job runs for worker health
   const { data: recentJobs } = useQuery({
     queryKey: ["health-check-jobs"],
@@ -228,14 +240,26 @@ export default function HealthCheckPage() {
               Monitor the status of integrations and services
             </p>
           </div>
-          <Button onClick={runHealthChecks} disabled={isRunning}>
-            {isRunning ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Run Health Check
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={runHealthChecks} disabled={isRunning}>
+              {isRunning ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Run Health Check
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClearCacheAndReload}
+              disabled={isRunning}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Limpar cache e recarregar
+            </Button>
+          </div>
         </div>
 
         {/* Summary Cards */}

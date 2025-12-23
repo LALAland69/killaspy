@@ -102,14 +102,6 @@
     
     <script type="module" src="/src/main.tsx"></script>
     
-    <!-- Register service worker fallback -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .catch(err => console.log('SW registration failed:', err));
-        });
-      }
-    </script>
+    <!-- Service Worker: o registro é gerenciado automaticamente pelo vite-plugin-pwa em builds de produção -->
   </body>
 </html>
