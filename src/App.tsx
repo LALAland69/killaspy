@@ -12,6 +12,7 @@ import { optimizedQueryClient } from "@/lib/queryClient";
 import { PageLoadingFallback } from "@/components/ui/loading-spinner";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/hooks/useNetworkStatus";
+import { ChunkErrorBanner } from "@/components/pwa/ChunkErrorBanner";
 import { useRoutePrefetching, prefetchCriticalRoutes } from "@/lib/routePrefetch";
 
 // Eager load critical public pages (avoid chunk-load issues)
@@ -105,9 +106,10 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <AppInitializer>
-              <NavigationLogger />
+            <NavigationLogger />
               <InstallPrompt showDelay={45000} minPageViews={3} />
               <OfflineIndicator />
+              <ChunkErrorBanner />
               <Routes>
                 {/* Public pages */}
                 <Route path="/pagina-de-vendas" element={<SalesPage />} />
