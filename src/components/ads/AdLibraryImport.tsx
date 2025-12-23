@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,10 +68,10 @@ function ApiErrorAlert({
           </Button>
 
           <Button size="sm" variant="ghost" asChild className="h-7">
-            <a href="/health">
+            <Link to="/health">
               <ExternalLink className="h-3 w-3 mr-1" />
               Ver status
-            </a>
+            </Link>
           </Button>
         </div>
       </AlertTitle>
