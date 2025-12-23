@@ -30,6 +30,8 @@ verify_jwt = true
 [functions.check-new-ads]
 verify_jwt = false
 
-# Facebook status check - requires JWT for security but cron uses internal call
 [functions.check-facebook-status]
 verify_jwt = false
+
+[functions.import-external-ads]
+verify_jwt = true
