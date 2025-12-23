@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.import-external-ads]
 verify_jwt = true
+
+[functions.scraper-webhook]
+verify_jwt = false
