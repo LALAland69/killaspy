@@ -13,6 +13,7 @@ import { PageLoadingFallback } from "@/components/ui/loading-spinner";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/hooks/useNetworkStatus";
 import { ChunkErrorBanner } from "@/components/pwa/ChunkErrorBanner";
+import { LazyLoadErrorBoundary } from "@/components/pwa/LazyLoadErrorBoundary";
 import { useRoutePrefetching, prefetchCriticalRoutes } from "@/lib/routePrefetch";
 
 // Eager load critical public pages (avoid chunk-load issues)
@@ -77,23 +78,27 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Wrapper for lazy loaded protected routes
+// Wrapper for lazy loaded protected routes with error boundary
 function LazyProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
     <ProtectedRoute>
-      <Suspense fallback={<PageLoadingFallback />}>
-        {children}
-      </Suspense>
+      <LazyLoadErrorBoundary fallbackTimeout={15000}>
+        <Suspense fallback={<PageLoadingFallback />}>
+          {children}
+        </Suspense>
+      </LazyLoadErrorBoundary>
     </ProtectedRoute>
   );
 }
 
-// Wrapper for lazy loaded public routes
+// Wrapper for lazy loaded public routes with error boundary
 function LazyRoute({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<PageLoadingFallback />}>
-      {children}
-    </Suspense>
+    <LazyLoadErrorBoundary fallbackTimeout={15000}>
+      <Suspense fallback={<PageLoadingFallback />}>
+        {children}
+      </Suspense>
+    </LazyLoadErrorBoundary>
   );
 }
 

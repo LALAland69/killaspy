@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,16 @@ import {
   Database,
   Globe,
   Server,
+  Shield,
+  Download,
+  Cpu,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { clearCacheAndReload } from "@/lib/pwaRecovery";
+import { useAuth } from "@/hooks/useAuth";
+import { logger, getCurrentCorrelationId } from "@/lib/logger";
 
 interface HealthCheckResult {
   name: string;
@@ -32,6 +37,7 @@ interface HealthCheckResult {
 
 export default function HealthCheckPage() {
   const { toast } = useToast();
+  const { user, loading: authLoading, isReconnecting } = useAuth();
 
   const [results, setResults] = useState<HealthCheckResult[]>([
     { name: "Facebook Ad Library API", status: "idle" },
@@ -40,6 +46,12 @@ export default function HealthCheckPage() {
     { name: "Edge Functions", status: "idle" },
   ]);
   const [isRunning, setIsRunning] = useState(false);
+  const [clientDiagnostics, setClientDiagnostics] = useState<Record<string, unknown> | null>(null);
+
+  // Load client diagnostics on mount
+  useEffect(() => {
+    setClientDiagnostics(logger.getDiagnostics());
+  }, []);
 
   const handleClearCacheAndReload = async () => {
     toast({
@@ -47,6 +59,33 @@ export default function HealthCheckPage() {
       description: "Vamos recarregar a página para destravar possíveis travamentos.",
     });
     await clearCacheAndReload({ reason: "manual_health" });
+  };
+
+  const handleExportDiagnostics = () => {
+    const diagnostics = {
+      ...logger.getDiagnostics(),
+      authStatus: {
+        isAuthenticated: !!user,
+        isLoading: authLoading,
+        isReconnecting,
+        userId: user?.id,
+      },
+      serviceResults: results,
+      timestamp: new Date().toISOString(),
+    };
+    
+    const blob = new Blob([JSON.stringify(diagnostics, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `killaspy-diagnostics-${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Diagnóstico exportado",
+      description: "Arquivo JSON baixado com sucesso.",
+    });
   };
   // Recent job runs for worker health
   const { data: recentJobs } = useQuery({
@@ -309,6 +348,97 @@ export default function HealthCheckPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Client Status Panel */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Status do Cliente
+            </CardTitle>
+            <CardDescription>
+              Diagnóstico de autenticação, cache e carregamento
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {/* Auth Status */}
+              <div className="p-4 rounded-lg border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  {authLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : user ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-destructive" />
+                  )}
+                  <span className="text-sm font-medium">Autenticação</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {authLoading ? "Verificando..." : user ? "Autenticado" : "Não autenticado"}
+                </p>
+                {isReconnecting && (
+                  <Badge variant="secondary" className="mt-2 text-xs">
+                    Reconectando...
+                  </Badge>
+                )}
+              </div>
+
+              {/* Service Worker Status */}
+              <div className="p-4 rounded-lg border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  {clientDiagnostics?.serviceWorkerController === "active" ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-medium">Service Worker</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {clientDiagnostics?.serviceWorkerController === "active" ? "Ativo" : "Inativo"}
+                </p>
+              </div>
+
+              {/* Network Status */}
+              <div className="p-4 rounded-lg border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  {clientDiagnostics?.onLine ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-destructive" />
+                  )}
+                  <span className="text-sm font-medium">Rede</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {clientDiagnostics?.onLine ? "Online" : "Offline"}
+                </p>
+              </div>
+
+              {/* Logs Status */}
+              <div className="p-4 rounded-lg border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  <Cpu className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Logs</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {String(clientDiagnostics?.logsCount || 0)} entradas ({String(clientDiagnostics?.errorsCount || 0)} erros)
+                </p>
+              </div>
+            </div>
+
+            {/* Correlation ID and Export */}
+            <div className="mt-4 pt-4 border-t flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">ID da Sessão:</span>{" "}
+                <code className="bg-muted px-1 py-0.5 rounded">{getCurrentCorrelationId().slice(0, 8)}</code>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleExportDiagnostics}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar Diagnóstico
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Service Health */}
