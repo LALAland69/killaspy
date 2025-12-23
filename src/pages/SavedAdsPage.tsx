@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useSavedAds } from "@/hooks/useSavedAds";
+import { useSavedAds, SavedAd } from "@/hooks/useSavedAds";
 import { useAds } from "@/hooks/useAds";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { ScoreBadge } from "@/components/dashboard/ScoreBadge";
 import { OptimizedImage } from "@/components/ui/optimized-image";
+import { SavedAdEditDialog } from "@/components/ads/SavedAdEditDialog";
 import { 
   Heart, 
   Loader2, 
@@ -13,18 +16,27 @@ import {
   Image as ImageIcon, 
   ChevronRight,
   FileText,
-  Trash2,
-  ExternalLink
+  Edit2,
+  Search,
+  Tag,
+  Download,
+  Filter
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToggleSaveAd } from "@/hooks/useSavedAds";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function SavedAdsPage() {
   const { data: savedAds, isLoading: loadingSaved } = useSavedAds();
   const { data: allAds, isLoading: loadingAds } = useAds();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [editingSavedAd, setEditingSavedAd] = useState<SavedAd | null>(null);
 
   const isLoading = loadingSaved || loadingAds;
 
@@ -34,11 +46,83 @@ export default function SavedAdsPage() {
     return { ...saved, ad };
   }).filter(s => s.ad) || [];
 
+  // Extract all unique tags
+  const allTags = [...new Set(savedAds?.flatMap(s => s.tags || []) || [])];
+
+  // Filter by search and tag
+  const filteredAds = savedAdsWithDetails.filter(({ ad, tags, notes }) => {
+    const matchesSearch = !searchTerm || 
+      ad?.page_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ad?.headline?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ad?.primary_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      notes?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesTag = !selectedTag || (tags && tags.includes(selectedTag));
+    
+    return matchesSearch && matchesTag;
+  });
+
+  // Export to PDF
+  const handleExportPDF = () => {
+    if (filteredAds.length === 0) {
+      toast.error("Nenhum ad para exportar");
+      return;
+    }
+
+    const doc = new jsPDF();
+    
+    // Title
+    doc.setFontSize(20);
+    doc.text("KillaSpy - Ads Salvos", 14, 22);
+    
+    // Date
+    doc.setFontSize(10);
+    doc.text(`Exportado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 30);
+    doc.text(`Total: ${filteredAds.length} ads`, 14, 36);
+    
+    if (selectedTag) {
+      doc.text(`Filtro: #${selectedTag}`, 14, 42);
+    }
+
+    // Table
+    const tableData = filteredAds.map(({ ad, notes, tags, created_at }) => [
+      ad?.page_name || "N/A",
+      ad?.headline?.substring(0, 50) + (ad?.headline && ad.headline.length > 50 ? "..." : "") || "N/A",
+      `${ad?.longevity_days || 0} dias`,
+      ad?.countries?.join(", ") || "N/A",
+      (tags || []).join(", ") || "-",
+      notes?.substring(0, 40) + (notes && notes.length > 40 ? "..." : "") || "-",
+    ]);
+
+    autoTable(doc, {
+      startY: selectedTag ? 48 : 42,
+      head: [["Anunciante", "Headline", "Longevidade", "Países", "Tags", "Notas"]],
+      body: tableData,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [124, 58, 237] },
+    });
+
+    // Analytics summary
+    const avgLongevity = filteredAds.reduce((acc, { ad }) => acc + (ad?.longevity_days || 0), 0) / filteredAds.length;
+    const avgScore = filteredAds.reduce((acc, { ad }) => acc + (ad?.suspicion_score || 0), 0) / filteredAds.length;
+
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.text("Resumo Analítico", 14, finalY);
+    doc.setFontSize(10);
+    doc.text(`• Longevidade média: ${avgLongevity.toFixed(1)} dias`, 14, finalY + 8);
+    doc.text(`• Score de suspeição médio: ${avgScore.toFixed(1)}`, 14, finalY + 14);
+    doc.text(`• Total de tags únicas: ${allTags.length}`, 14, finalY + 20);
+
+    doc.save(`killaspy-saved-ads-${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success("PDF exportado com sucesso!");
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
               <Heart className="h-5 w-5 text-red-500" />
@@ -47,42 +131,115 @@ export default function SavedAdsPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               Seus ads favoritos para análise posterior
               <Badge variant="secondary" className="ml-2">
-                {savedAdsWithDetails.length} salvos
+                {filteredAds.length} de {savedAdsWithDetails.length}
               </Badge>
             </p>
           </div>
+          
+          <Button onClick={handleExportPDF} variant="outline" className="gap-2">
+            <Download className="h-4 w-4" />
+            Exportar PDF
+          </Button>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, headline, notas..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <button
+                onClick={() => setSelectedTag(null)}
+                className={cn(
+                  "px-2.5 py-1 text-xs rounded-full transition-colors",
+                  !selectedTag 
+                    ? "bg-primary text-primary-foreground" 
+                    : "bg-secondary text-secondary-foreground hover:bg-primary/10"
+                )}
+              >
+                Todos
+              </button>
+              {allTags.slice(0, 8).map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs rounded-full transition-colors",
+                    selectedTag === tag
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-primary/10"
+                  )}
+                >
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {isLoading ? (
           <div className="flex h-48 items-center justify-center rounded-lg border border-border/50 bg-card">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : savedAdsWithDetails.length === 0 ? (
+        ) : filteredAds.length === 0 ? (
           <div className="flex h-48 flex-col items-center justify-center gap-4 rounded-lg border border-border/50 bg-card">
             <Heart className="h-12 w-12 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">Nenhum ad salvo ainda.</p>
-            <Button asChild>
-              <Link to="/ads">
-                Explorar Biblioteca de Ads
-              </Link>
-            </Button>
+            <p className="text-sm text-muted-foreground">
+              {savedAdsWithDetails.length === 0 
+                ? "Nenhum ad salvo ainda." 
+                : "Nenhum resultado encontrado."
+              }
+            </p>
+            {savedAdsWithDetails.length === 0 && (
+              <Button asChild>
+                <Link to="/ads">
+                  Explorar Biblioteca de Ads
+                </Link>
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {savedAdsWithDetails.map(({ ad, created_at }) => (
-              ad && <SavedAdCard key={ad.id} ad={ad} savedAt={created_at} />
+            {filteredAds.map((savedAd) => (
+              savedAd.ad && (
+                <SavedAdCard 
+                  key={savedAd.id} 
+                  savedAd={savedAd}
+                  onEdit={() => setEditingSavedAd(savedAd)}
+                />
+              )
             ))}
           </div>
         )}
       </div>
+
+      <SavedAdEditDialog
+        savedAd={editingSavedAd}
+        open={!!editingSavedAd}
+        onOpenChange={(open) => !open && setEditingSavedAd(null)}
+      />
     </AppLayout>
   );
 }
 
-function SavedAdCard({ ad, savedAt }: { ad: any; savedAt: string }) {
+interface SavedAdCardProps {
+  savedAd: SavedAd & { ad: any };
+  onEdit: () => void;
+}
+
+function SavedAdCard({ savedAd, onEdit }: SavedAdCardProps) {
+  const { ad, created_at, notes, tags } = savedAd;
   const navigate = useNavigate();
   const { toggleSave, isPending } = useToggleSaveAd();
-  const startDate = ad.start_date ? new Date(ad.start_date) : null;
   
   return (
     <Card className="overflow-hidden hover:border-primary/30 transition-colors group">
@@ -97,23 +254,52 @@ function SavedAdCard({ ad, savedAt }: { ad: any; savedAt: string }) {
               <div>
                 <p className="font-medium text-sm line-clamp-1">{ad.page_name || "Unknown Page"}</p>
                 <p className="text-xs text-muted-foreground">
-                  Salvo {formatDistanceToNow(new Date(savedAt), { addSuffix: true, locale: ptBR })}
+                  Salvo {formatDistanceToNow(new Date(created_at), { addSuffix: true, locale: ptBR })}
                 </p>
               </div>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-red-500"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleSave(ad.id);
-              }}
-              disabled={isPending}
-            >
-              <Heart className="h-4 w-4 fill-current" />
-            </Button>
+            <div className="flex gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-red-500"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleSave(ad.id);
+                }}
+                disabled={isPending}
+              >
+                <Heart className="h-4 w-4 fill-current" />
+              </Button>
+            </div>
           </div>
+
+          {/* Tags */}
+          {tags && tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {tags.slice(0, 3).map((tag) => (
+                <Badge key={tag} variant="outline" className="text-xs px-2 py-0">
+                  #{tag}
+                </Badge>
+              ))}
+              {tags.length > 3 && (
+                <Badge variant="outline" className="text-xs px-2 py-0">
+                  +{tags.length - 3}
+                </Badge>
+              )}
+            </div>
+          )}
 
           {/* Stats */}
           <div className="space-y-1">
@@ -132,6 +318,16 @@ function SavedAdCard({ ad, savedAt }: { ad: any; savedAt: string }) {
             )}
           </div>
 
+          {/* Notes preview */}
+          {notes && (
+            <div className="flex items-start gap-2 p-2 bg-secondary/50 rounded-md">
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground line-clamp-2">
+                {notes}
+              </p>
+            </div>
+          )}
+
           {/* Actions */}
           <Button 
             variant="outline" 
@@ -139,24 +335,14 @@ function SavedAdCard({ ad, savedAt }: { ad: any; savedAt: string }) {
             className="w-full h-8 text-xs justify-between"
             onClick={() => navigate(`/ads/${ad.id}`)}
           >
-            Detalhes
+            Ver detalhes
             <ChevronRight className="h-3 w-3" />
           </Button>
-
-          {/* Preview Text */}
-          {ad.primary_text && (
-            <div className="flex items-start gap-2 pt-1">
-              <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {ad.primary_text}
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Media Preview */}
         <div 
-          className="relative aspect-square bg-secondary cursor-pointer"
+          className="relative aspect-video bg-secondary cursor-pointer"
           onClick={() => navigate(`/ads/${ad.id}`)}
         >
           {ad.media_url ? (
