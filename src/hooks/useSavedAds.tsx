@@ -166,6 +166,41 @@ export function useUnsaveAd() {
   });
 }
 
+export function useUpdateSavedAd() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ adId, notes, tags }: { adId: string; notes?: string; tags?: string[] }) => {
+      logger.info("ACTION", "Updating saved ad", { adId, notes, tags });
+
+      const { error } = await supabase
+        .from("saved_ads")
+        .update({ notes, tags })
+        .eq("ad_id", adId);
+
+      if (error) {
+        logger.error("ACTION", "Failed to update saved ad", {
+          adId,
+          error: error.message,
+        });
+        throw error;
+      }
+
+      logger.info("ACTION", "Saved ad updated", { adId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-ads"] });
+      toast.success("Anotações salvas");
+    },
+    onError: (error) => {
+      toast.error(
+        "Erro ao salvar: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
+    },
+  });
+}
+
 export function useToggleSaveAd() {
   const saveAd = useSaveAd();
   const unsaveAd = useUnsaveAd();
